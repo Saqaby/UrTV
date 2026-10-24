@@ -362,8 +362,7 @@ gave so I can change any (`dock.sh name <pkg> '<اسم آخر>'`, or `''` for it
 
 Take every id from `find-team`'s output, which comes from our list of every club in the app's leagues and the
 national teams; never guess one. If it gives several, pick the one I meant (a Saudi club before a namesake abroad).
-If I said «لا شي» to clubs, skip `find-team` and clear the defaults (الهلال والمنتخب السعودي would stay otherwise):
-`optimize/saver.sh teams none`. The same any time later if I stop following a team and follow no other. `optimize/saver.sh` without arguments lists every option.
+If I said «لا شي» to clubs, skip `find-team`: this copy follows no team by default (`optimize/saver.sh teams none` clears any picked later). The same any time later if I stop following a team and follow no other. `optimize/saver.sh` without arguments lists every option.
 
 ## 5. Check (5 minutes)
 

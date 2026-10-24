@@ -162,10 +162,11 @@ final class Prefs {
     /** Followed teams in priority order, "id|name". Migrates the old two team fields once. */
     List<String> teams() {
         if (!sp.contains("teams")) {
+            // this copy follows no team until one is picked (the presets stay as quick picks)
             List<String> v = new ArrayList<>();
             for (int slot = 1; slot <= 2; slot++) {
                 String[] def = TEAM_PRESETS[slot - 1];
-                String id = sp.getString("team" + slot + "Id", def[0]);
+                String id = sp.getString("team" + slot + "Id", "");
                 if (!id.isEmpty()) v.add(id + "|" + sp.getString("team" + slot + "Name", def[1]));
             }
             return v;
@@ -300,7 +301,7 @@ final class Prefs {
         return CARD_STYLES[0][1];
     }
 
-    String slot() { return sp.getString("slot", "matches"); }
+    String slot() { return sp.getString("slot", "weather"); }
     void setSlot(String v) { sp.edit().putString("slot", v).apply(); }
 
     static String slotLabel(String v) {
