@@ -58,7 +58,7 @@ import java.util.Map;
 
 /**
  * Apple TV style home screen: clock top-left, pills top-right, the focused dock app's name over an
- * ambient glow, a dock of pinned apps, and every other app in a grid that scrolls up on Down.
+ * ambient glow, and a dock of pinned apps (other apps are added to it from the settings; there is no app grid).
  * Plain framework views only (no AndroidX). Network only for hosted wallpapers and the optional card (HomeCard).
  *
  * Adapted from github.com/mihirgupta0900/tv-home (MIT, see android/launcher/LICENSE-tv-home):
@@ -482,6 +482,8 @@ public class MainActivity extends Activity {
         Collections.sort(rest, (x, y) -> x.label.compareToIgnoreCase(y.label));
         // Fewer than MIN_DOCK of the chosen apps installed: top the dock up from the rest.
         while (dock.size() < MIN_DOCK && !rest.isEmpty()) dock.add(rest.remove(0));
+        // This copy shows no «كل التطبيقات» grid: an app is reached by adding it to the favourites from the settings.
+        rest.clear();
 
         dockRow.removeAllViews();
         grid.removeAllViews();

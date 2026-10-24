@@ -16,10 +16,9 @@ import java.util.Locale;
 import java.util.TimeZone;
 
 /**
- * Prayer times for the TV: Umm al-Qura, the same numbers the screensaver's page computes and the
- * ones Aladhan calls method 4. Everything is computed on the TV with no network; once a day the
- * times are quietly replaced by Aladhan's, and Isha stays 90 minutes after Maghrib (120 in Ramadan)
- * like the Umm al-Qura calendar.
+ * Prayer times for the TV: ISNA (Fajr and Isha at 15°), the same numbers the screensaver's page computes
+ * and the ones Aladhan calls method 2. Everything is computed on the TV with no network; once a day the
+ * times are quietly replaced by Aladhan's.
  */
 final class PrayerTimes {
     static final int FAJR = 0, SUNRISE = 1, DHUHR = 2, ASR = 3, MAGHRIB = 4, ISHA = 5;
@@ -156,7 +155,7 @@ final class PrayerTimes {
     // ---------------------------------------------------------------- Aladhan
 
     /**
-     * Replaces today's computed times with Aladhan's (method 4) once they arrive, and puts the alarm back for the
+     * Replaces today's computed times with Aladhan's (method 2, ISNA) once they arrive, and puts the alarm back for the
      * new times. Runs off the main thread; `done` runs on the main thread when something changed.
      */
     static void refresh(final Context c, final Runnable done) {
@@ -174,7 +173,7 @@ final class PrayerTimes {
         try {
             String url = "https://api.aladhan.com/v1/timings/" + PrayerMath.aladhanDate(day.getTimeInMillis(), place.tz)
                     + "?latitude=" + place.lat + "&longitude=" + place.lng
-                    + "&method=4&timezonestring=" + URLEncoder.encode(place.tz, "UTF-8");
+                    + "&method=2&timezonestring=" + URLEncoder.encode(place.tz, "UTF-8");
             HttpURLConnection con = (HttpURLConnection) new URL(url).openConnection();
             con.setConnectTimeout(6000);
             con.setReadTimeout(8000);
@@ -189,7 +188,7 @@ final class PrayerTimes {
             }
             JSONObject timings = new JSONObject(body.toString()).getJSONObject("data").getJSONObject("timings");
             StringBuilder out = new StringBuilder();
-            for (int i = 0; i <= MAGHRIB; i++) {   // Isha stays ours: 90/120 minutes after Maghrib
+            for (int i = 0; i <= ISHA; i++) {
                 int[] hm = PrayerMath.parseClock(timings.optString(KEYS[i]));   // «5:12 (+03)» is 5:12
                 if (hm == null) throw new IllegalStateException("no " + KEYS[i]);
                 if (out.length() > 0) out.append(',');
@@ -209,18 +208,18 @@ final class PrayerTimes {
         }
     }
 
-    /** Aladhan's five times, "HH:mm,..." as saved; Isha is Maghrib's moment plus its delay, never wrapped into the day. */
+    /** Aladhan's six times, "HH:mm,..." as saved; Isha is never wrapped back before Maghrib. */
     private void apply(String saved) {
         String[] values = saved.split(",");
-        if (values.length < MAGHRIB + 1) return;
-        long[] parsed = new long[MAGHRIB + 1];
-        for (int i = 0; i <= MAGHRIB; i++) {
+        if (values.length < ISHA + 1) return;
+        long[] parsed = new long[ISHA + 1];
+        for (int i = 0; i <= ISHA; i++) {
             int[] hm = PrayerMath.parseClock(values[i]);
             if (hm == null) return;   // not a time: keep the computed ones
             parsed[i] = day0 + (hm[0] * 60 + hm[1]) * 60_000L;
         }
-        for (int i = 0; i <= MAGHRIB; i++) set(i, parsed[i]);
-        set(ISHA, parsed[MAGHRIB] + PrayerMath.ishaDelayMillis(ramadan));
+        for (int i = 0; i < ISHA; i++) set(i, parsed[i]);
+        set(ISHA, PrayerMath.afterMaghrib(parsed[MAGHRIB], parsed[ISHA]));
         shift();   // Aladhan's times are the raw ones: the person's minutes go on top of them
     }
 

@@ -19,8 +19,11 @@ final class PrayerMath {
 
     private PrayerMath() {}
 
-    /** Isha comes this long after Maghrib (Umm al-Qura): 90 minutes, 120 in Ramadan. */
-    static long ishaDelayMillis(boolean ramadan) { return (ramadan ? 120 : 90) * 60_000L; }
+    /** ISNA: Fajr and Isha with the sun this far below the horizon (Aladhan's method 2). */
+    static final double ISNA_ANGLE = 15;
+
+    /** Isha is never before Maghrib: past midnight (a high latitude) it is the next day's clock time, not one already gone. */
+    static long afterMaghrib(long maghrib, long isha) { return isha < maghrib ? isha + 86_400_000L : isha; }
 
     /** Local midnight of that day in that zone. */
     static long midnight(int y, int mo, int d, String tz) {
@@ -44,11 +47,15 @@ final class PrayerMath {
         double jd0 = utc.getTimeInMillis() / 86400000.0 + 2440587.5 - lng / 360.0;
         double tzHours = zone.getOffset(day0 + 12 * 3600_000L) / 3600000.0;
 
-        double fajr = adj(angleTime(jd0, lat, 18.5, 5, true), tzHours, lng);
+        double fajr = adj(angleTimeOrNaN(jd0, lat, ISNA_ANGLE, 5, true), tzHours, lng);   // NaN where the sun stays above 15°
         double sunrise = adj(angleTime(jd0, lat, .833, 6, true), tzHours, lng);
         double dhuhr = adj(noon(jd0, 12), tzHours, lng);
         double asr = adj(asrTime(jd0, lat, 13), tzHours, lng);
         double maghrib = adj(angleTime(jd0, lat, .833, 18, false), tzHours, lng);
+        double isha = adj(angleTimeOrNaN(jd0, lat, ISNA_ANGLE, 18, false), tzHours, lng);
+        // far north in summer the sun never sinks 15° below the horizon: Fajr 90 minutes before sunrise, Isha 90 after Maghrib
+        if (Double.isNaN(fajr)) fajr = sunrise - 1.5;
+        if (Double.isNaN(isha)) isha = maghrib + 1.5;
 
         long[] at = new long[6];
         at[FAJR] = day0 + minutesOfDay(fajr) * 60_000L;
@@ -56,13 +63,13 @@ final class PrayerMath {
         at[DHUHR] = day0 + minutesOfDay(dhuhr) * 60_000L;
         at[ASR] = day0 + minutesOfDay(asr) * 60_000L;
         at[MAGHRIB] = day0 + minutesOfDay(maghrib) * 60_000L;
-        at[ISHA] = at[MAGHRIB] + ishaDelayMillis(ramadan);
+        at[ISHA] = afterMaghrib(at[MAGHRIB], day0 + minutesOfDay(isha) * 60_000L);
         return at;
     }
 
     /** The preference key of the day's times: the date in the city's zone and the city itself, so a new city refetches. */
     static String key(long millis, double lat, double lng, String tz) {
-        return "times_" + format("yyyyMMdd", millis, tz) + "_" + String.format(Locale.US, "%.3f_%.3f", lat, lng) + "_" + tz;
+        return "times_isna_" + format("yyyyMMdd", millis, tz) + "_" + String.format(Locale.US, "%.3f_%.3f", lat, lng) + "_" + tz;
     }
 
     /** The date Aladhan is asked for: the city's own day, not the TV's. */
@@ -99,6 +106,14 @@ final class PrayerMath {
                 / (Math.cos(decl * RAD) * Math.cos(lat * RAD));
         double T = Math.acos(Math.max(-1, Math.min(1, cosT))) / RAD / 15;
         return n + (before ? -T : T);
+    }
+
+    /** The same, NaN when the sun never reaches that angle that day (far north in summer, for Fajr and Isha). */
+    private static double angleTimeOrNaN(double jd0, double lat, double angle, double t, boolean before) {
+        double decl = sun(jd0, t / 24)[0];
+        double cosT = (-Math.sin(angle * RAD) - Math.sin(decl * RAD) * Math.sin(lat * RAD))
+                / (Math.cos(decl * RAD) * Math.cos(lat * RAD));
+        return Math.abs(cosT) > 1 ? Double.NaN : angleTime(jd0, lat, angle, t, before);
     }
 
     private static double asrTime(double jd0, double lat, double t) {

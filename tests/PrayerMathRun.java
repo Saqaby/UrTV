@@ -16,16 +16,16 @@ public final class PrayerMathRun {
     static String hm(long at, String tz) { return PrayerMath.clockOf(at, tz); }
 
     public static void main(String[] args) {
-        // Riyadh, 23 October 2026: the five times come in order and Isha is 90 minutes after Maghrib
+        // Riyadh, 23 October 2026: the five times come in order and Isha (ISNA, 15°) about an hour after Maghrib
         long[] r = PrayerMath.compute(2026, 10, 23, 24.6877, 46.7219, "Asia/Riyadh", false);
         boolean ordered = true;
         for (int i = 1; i < 6; i++) ordered &= r[i] > r[i - 1];
         check("Riyadh: fajr < sunrise < dhuhr < asr < maghrib < isha", ordered, java.util.Arrays.toString(r));
         check("Riyadh: Fajr 04:3x, Dhuhr 11:2x-11:3x, Maghrib 17:0x-17:1x", hm(r[0], "Asia/Riyadh").startsWith("04:") && hm(r[2], "Asia/Riyadh").startsWith("11:")
                 && hm(r[4], "Asia/Riyadh").startsWith("17:"), hm(r[0], "Asia/Riyadh") + " " + hm(r[2], "Asia/Riyadh") + " " + hm(r[4], "Asia/Riyadh"));
-        check("Riyadh: Isha is Maghrib + 90 minutes", r[5] - r[4] == 90 * 60_000L, String.valueOf(r[5] - r[4]));
+        check("Riyadh: ISNA Isha (15°) is an hour or a little more after Maghrib", r[5] - r[4] > 55 * 60_000L && r[5] - r[4] < 80 * 60_000L, String.valueOf(r[5] - r[4]));
         long[] ram = PrayerMath.compute(2026, 10, 23, 24.6877, 46.7219, "Asia/Riyadh", true);
-        check("Ramadan: Isha is Maghrib + 120 minutes", ram[5] - ram[4] == 120 * 60_000L, String.valueOf(ram[5] - ram[4]));
+        check("Ramadan: ISNA has no Ramadan delay, the same Isha", ram[5] - ram[4] == r[5] - r[4], String.valueOf(ram[5] - ram[4]));
 
         // Oslo, midsummer: Maghrib at 22:4x, so Isha is after midnight: the next day's, not 00:1x of the day that began 24 hours before
         long[] o = PrayerMath.compute(2026, 6, 21, 59.91, 10.75, "Europe/Oslo", false);
@@ -37,8 +37,8 @@ public final class PrayerMathRun {
 
         // the cache key and Aladhan's date go by the city's zone and name the city
         long t = Instant.parse("2026-10-23T21:30:00Z").toEpochMilli();   // Saturday 00:30 in Riyadh, Friday evening in New York
-        check("key: Riyadh's date, not the TV's", PrayerMath.key(t, 24.6877, 46.7219, "Asia/Riyadh").startsWith("times_20261024_"), PrayerMath.key(t, 24.6877, 46.7219, "Asia/Riyadh"));
-        check("key: New York's date", PrayerMath.key(t, 40.71, -74.0, "America/New_York").startsWith("times_20261023_"), PrayerMath.key(t, 40.71, -74.0, "America/New_York"));
+        check("key: Riyadh's date, not the TV's", PrayerMath.key(t, 24.6877, 46.7219, "Asia/Riyadh").startsWith("times_isna_20261024_"), PrayerMath.key(t, 24.6877, 46.7219, "Asia/Riyadh"));
+        check("key: New York's date", PrayerMath.key(t, 40.71, -74.0, "America/New_York").startsWith("times_isna_20261023_"), PrayerMath.key(t, 40.71, -74.0, "America/New_York"));
         check("key: another city the same day is another key", !PrayerMath.key(t, 24.6877, 46.7219, "Asia/Riyadh").equals(PrayerMath.key(t, 21.4858, 39.1925, "Asia/Riyadh")), "same");
         check("key: the same city is the same key", PrayerMath.key(t, 24.6877, 46.7219, "Asia/Riyadh").equals(PrayerMath.key(t + 3600_000L, 24.6877, 46.7219, "Asia/Riyadh")), "differs");
         check("key: the same instant in another zone of the same place is another key", !PrayerMath.key(t, 24.6877, 46.7219, "Asia/Riyadh").equals(PrayerMath.key(t, 24.6877, 46.7219, "Asia/Kuwait")), "same");
@@ -47,7 +47,7 @@ public final class PrayerMathRun {
                 PrayerMath.aladhanDate(t, "Asia/Riyadh") + " " + PrayerMath.aladhanDate(t, "America/New_York"));
         TimeZone.setDefault(TimeZone.getTimeZone("Pacific/Auckland"));   // the TV's own zone must not leak in
         check("key and date ignore the machine's zone", PrayerMath.aladhanDate(t, "Asia/Riyadh").equals("24-10-2026")
-                && PrayerMath.key(t, 24.6877, 46.7219, "Asia/Riyadh").startsWith("times_20261024_"), PrayerMath.aladhanDate(t, "Asia/Riyadh"));
+                && PrayerMath.key(t, 24.6877, 46.7219, "Asia/Riyadh").startsWith("times_isna_20261024_"), PrayerMath.aladhanDate(t, "Asia/Riyadh"));
 
         // Aladhan's «5:12 (+03)» must not crash the receiver
         check("parse: 05:12", ok(PrayerMath.parseClock("05:12"), 5, 12), "");
