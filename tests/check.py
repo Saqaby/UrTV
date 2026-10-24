@@ -33,9 +33,14 @@ def tracked(*globs):
 
 
 # ---- build
-# Thmanyah's licence allows its files only inside a built product: never in this public repository (CI puts them in place)
-leaked = [str(f.relative_to(ROOT)) for f in tracked("*Thmanyah*") + tracked("dist/urtv.html")]
-check("Thmanyah's files and the page that inlines them are not committed", not leaked, leaked)
+# Thmanyah's licence allows its files only inside a built product: never in this public repository. In this copy the files
+# named Thmanyah* are IBM Plex Sans Arabic (OFL, assets/fonts/FONTS-NOTE.txt): their family name says so.
+from fontTools.ttLib import TTFont
+def plex(f):
+    try: return "IBM Plex Sans Arabic" in TTFont(f)["name"].getDebugName(1)
+    except Exception: return False
+leaked = [str(f.relative_to(ROOT)) for f in tracked("*Thmanyah*") + tracked("dist/urtv.html") if f.suffix == ".html" or not plex(f)]
+check("no Thmanyah file is committed (the Thmanyah* names here are IBM Plex Sans Arabic), nor the page that inlines fonts", not leaked, leaked)
 missing_fonts = [f for f in ("Thmanyah-Regular.woff2", "ThmanyahDisplay-Bold.woff2") if not (ROOT / "assets/fonts" / f).is_file()]
 check("Thmanyah is in place for the build (CI: the private urtv-fonts checkout; locally: your own copy)", not missing_fonts, missing_fonts)
 before = {n: (ROOT / "dist" / n).read_bytes() for n in ("tv.html",) if (ROOT / "dist" / n).is_file()}
