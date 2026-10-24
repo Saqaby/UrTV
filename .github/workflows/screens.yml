@@ -69,8 +69,8 @@ jobs:
         run: |
           set -e
           run="run-${GITHUB_RUN_NUMBER}-$(date -u +%m%d-%H%M)"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           work=$(mktemp -d)
           git clone --quiet --depth 20 --branch data-screens "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" "$work" || {
             git init --quiet "$work"; git -C "$work" checkout --quiet -b data-screens
