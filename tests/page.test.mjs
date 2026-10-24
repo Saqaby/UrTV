@@ -91,7 +91,7 @@ const SAMPLE = {
     NEXT_LIST = { '136013': [ev('a', 'Al-Hilal', 'Al-Nassr', 3), ev('b', 'Al-Ahli', 'Al-Hilal', 80)] };
   },
 };
-const EXPECT = { prayers: [6, 'مواقيت اليوم'], forecast: [5, 'الأيام القادمة'], matches: [2, 'مباريات فرقك'],
+const EXPECT = { prayers: [7, 'مواقيت اليوم'], forecast: [5, 'الأيام القادمة'], matches: [2, 'مباريات فرقك'],
                  verse: [2, null], wisdom: [2, 'حكمة اليوم'], shows: [1, 'هذا الأسبوع'] };
 for (const [panel, [rows, title]] of Object.entries(EXPECT)) {
   const { p, ctx, errors } = await open('tv.html', 'teams=136013&panel=' + panel);
@@ -1475,16 +1475,25 @@ for (const [width, height] of [[461, 250], [1920, 1080], [960, 540]]) {   // lon
       const { p, ctx, errors } = await open('tv.html', hash, { width, height });
       await p.clock.setFixedTime(new Date(when));
       await p.evaluate(TIMES + ' renderPanel(false); tickPrayer();');
-      const r = await p.evaluate(() => { const lis = [...document.querySelectorAll('#week-list li')], card = document.querySelector('.week').getBoundingClientRect();
+      const r = await p.evaluate(() => { const lis = [...document.querySelectorAll('#week-list li:not(.mid)')], card = document.querySelector('.week').getBoundingClientRect();
+        const mid = document.querySelector('#week-list li.mid'), mb = mid && mid.getBoundingClientRect();
         return { n: lis.length, lit: lis.map((l, i) => l.classList.contains('next') ? i : -1).filter(i => i >= 0), past: lis.filter(l => l.classList.contains('past')).length,
           litName: (lis.find(l => l.classList.contains('next')) || { textContent: '' }).firstElementChild.textContent, panel: (document.getElementById('prayer-name') || {}).textContent || '',
           inside: lis.every(l => { const b = l.getBoundingClientRect(); return b.left >= card.left - 1 && b.right <= card.right + 1 && b.bottom <= card.bottom + 1; }),
-          dayName: lis[2].firstElementChild.textContent }; });
+          dayName: lis[2].firstElementChild.textContent,
+          hd: (document.querySelector('.week .hd') || {}).textContent || '', mid: mid ? mid.firstElementChild.textContent : '', midPast: !!mid && mid.classList.contains('past'), midLit: !!mid && mid.classList.contains('next'),
+          midInside: !!mb && mb.left >= card.left - 1 && mb.right <= card.right + 1 && mb.bottom <= card.bottom + 1 && mb.top >= lis[5].getBoundingClientRect().bottom - 1 }; });
       const tag = `prayer boxes ${label} ${width}x${height}${hash.includes('widget') ? ' card' : ''}`;
       check(`${tag}: six boxes inside the card, exactly one lit (box ${lit}), ${past} dimmed`,
         !errors.length && r.n === 6 && r.lit.join() === String(lit) && r.past === past && r.inside, JSON.stringify(r) + errors.join('; '));
       if (!hash.includes('widget')) check(`${tag}: the lit box is the prayer the bottom panel names, the sunrise never lit`, r.litName === r.panel && r.lit[0] !== 1, JSON.stringify(r));
       if (when.startsWith('2026-10-23')) check(`${tag}: Friday's Dhuhr box says الجمعة`, r.dayName === 'الجمعة', r.dayName);
+      // «منتصف الليل» (17:45 to 04:50 halfway: 23:18) under the boxes, inside the card, never lit, dimmed from 23:18 until Fajr
+      const midPast = ['04:00', '00:30'].some(t => label.startsWith(t));
+      if (hash.includes('widget')) check(`${tag}: the home card has «منتصف الليل ١١:١٨ م» in its title line, no row for it`,
+        !r.mid && r.hd.includes('منتصف الليل') && r.hd.includes('١١:١٨'), JSON.stringify(r));
+      else check(`${tag}: «منتصف الليل» under the boxes, inside the card, ${midPast ? 'dimmed' : 'not dimmed'}`,
+        r.mid === 'منتصف الليل' && r.midInside && !r.midLit && r.midPast === midPast, JSON.stringify(r));
       await ctx.close();
     }
   }

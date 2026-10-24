@@ -165,6 +165,8 @@
   .week ul.pgrid li.next{background:rgba(var(--gold-rgb),.18);border-color:rgba(var(--gold-rgb),.55);color:var(--gold-hi)}
   .week ul.pgrid li.next .dt{color:var(--gold-3)}
   .week ul.pgrid li .left{font-size:.68em;color:var(--gold-3);font-variant-numeric:tabular-nums}   /* the time left to the next prayer */
+  /* «منتصف الليل» under the six boxes: one slim row across the grid */
+  .week ul.pgrid li.mid{grid-column:1/-1;flex-direction:row;gap:.8em;padding:calc(.8vh + 3px) .5em;font-size:calc(clamp(15px,1.35vw,26px)*var(--z,1))}
   /* «الساعات القادمة»: the next six hours in one row, the earliest on the right */
   .week li.hrs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:.3em;white-space:normal;border-bottom:none;padding:1.2vh 0 .5vh;align-items:start;text-align:center}
   .week li.hrs .hc{display:flex;flex-direction:column;align-items:center;gap:.4em;min-width:0}
@@ -2245,7 +2247,8 @@ function renderCard(card, animate, keepSize){
   else if(P === 'wisdom'){ const q = wisdomOfDay(); paintHd(hd, q.title); rows = q.rows; }
   else if(P === 'adhkar'){ const q = adhkarCard(card); paintHd(hd, q.title, q.hd); rows = q.rows; }
   else if(P === 'stocks'){ const q = stocksCard(); paintHd(hd, '', q.hd); rows = q.rows; }
-  if(P === 'matches' && matchesStaleNote()) paintHd(hd, '', `<span>${PANEL_TITLE.matches}</span><span class="until">${matchesStaleNote()}</span>`);
+  if(P === 'prayers' && CONFIG.widget && midnight()) paintHd(hd, '', `<span>${PANEL_TITLE.prayers}</span><span class="until">منتصف الليل ${midnight().time}</span>`);
+  else if(P === 'matches' && matchesStaleNote()) paintHd(hd, '', `<span>${PANEL_TITLE.matches}</span><span class="until">${matchesStaleNote()}</span>`);
   else if(PANEL_TITLE[P]) paintHd(hd, PANEL_TITLE[P]);
   if(!rows.length){
     if(P === 'matches' && !MATCHES_LOADED && ul.firstElementChild && !ul.firstElementChild.classList.contains('empty')) return;
@@ -2401,7 +2404,19 @@ function prayerRows(){
       left = `<span class="left">- ${m < 60 ? ar(m) + ' دقيقة' : ar(Math.floor(m / 60)) + ' س ' + ar(m % 60) + ' د'}</span>`;
     }
     return `<li class="${cls}"><span>${names[k]}</span><span class="dt">${fmt12(h, mi)}</span>${left}</li>`;
-  });
+  }).concat(CONFIG.widget ? [] : midnightRow());   // the home card is too short for it: there it is in the title line
+}
+// «منتصف الليل»: halfway from Maghrib to the next Fajr (tonight's; never lit, dimmed once it has passed)
+function midnight(){
+  if(!DAY_TIMES || !DAY_TIMES.Maghrib || !DAY_TIMES.Fajr) return null;
+  const p = riyadhParts(), mins = p.h * 60 + p.mi;
+  const at = k => { const [h, mi] = String(DAY_TIMES[k]).split(':').map(Number); return h * 60 + mi; };
+  const m = Math.round(at('Maghrib') + (at('Fajr') + 1440 - at('Maghrib')) / 2), c = m % 1440;
+  return {time: fmt12(Math.floor(c / 60), c % 60), past: (mins < at('Fajr') ? mins + 1440 : mins) >= m};   // before Fajr the clock is still tonight's
+}
+function midnightRow(){
+  const n = midnight();
+  return n ? [`<li class="mid${n.past ? ' past' : ''}"><span>منتصف الليل</span><span class="dt">${n.time}</span></li>`] : [];
 }
 
 // the city's date as YYYY-MM-DD, and the one after it
