@@ -63,6 +63,18 @@ final class GreetingText {
         return place + "، " + digits(Math.round(temp) + "°", latin);
     }
 
+    /** The weather icon's name (res/drawable/wx_<name>), as the screensaver's wxIcon picks it; dust shows the haze («fog»). */
+    static String icon(int code, double dust, boolean night) {
+        if (dust >= DUST) return "fog";
+        if (code <= 1) return night ? "moon" : "sun";
+        if (code == 2) return night ? "partnight" : "part";
+        if (code == 3) return "cloud";
+        if (code == 45 || code == 48) return "fog";
+        if (code >= 95) return "storm";
+        if ((code >= 71 && code <= 77) || code == 85 || code == 86) return "snow";
+        return "rain";   // drizzle, rain and showers
+    }
+
     /** «الغروب ٥:٥٧ م» from "17:57". */
     static String sun(String label, String hhmm, boolean latin) {
         int colon = hhmm.indexOf(':');

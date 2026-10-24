@@ -21,7 +21,7 @@ FONTS = {
     "__F_HAFS__": "UthmanicHafs-v30.woff2",   # the whole font, unmodified: its licence forbids changing it (see UthmanicHafs-NOTICE.txt)
 }
 # tv.html points here for fonts and bundled photos; the app answers from its assets, a browser from GitHub.
-REPO = "https://raw.githubusercontent.com/tshi-dev/UrTV/master/"
+REPO = "https://raw.githubusercontent.com/Saqaby/UrTV/master/"
 
 
 TAFSIR_MAX = 130   # characters kept of «التفسير الميسر»; the card shows at most three lines of it
@@ -303,6 +303,7 @@ def main():
     html = html.replace("__VERSES__", js_json(verses_for_screen()))
     html = html.replace("__HADITH__", js_json(hadith_for_screen()))   # checked by CI
     html = html.replace("__ADHKAR__", js_json(adhkar_for_screen()))   # checked by CI
+    html = html.replace("__SALAF__", js_json(json.loads((ROOT / "assets/shared/salaf.json").read_text(encoding="utf-8"))))
     html = html.replace("__WISDOM__", js_json(json.loads((ROOT / "assets/shared/wisdom.json").read_text(encoding="utf-8"))))
 
     bg_dir = ROOT / "assets/backgrounds"

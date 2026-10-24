@@ -100,17 +100,25 @@ for (const [panel, [rows, title]] of Object.entries(EXPECT)) {
     hd: document.getElementById('week-hd').textContent, shown: getComputedStyle(document.querySelector('.week')).display !== 'none' }));
   check(`card ${panel}: no errors`, !errors.length, errors.join('; '));
   check(`card ${panel}: ${rows} rows, title right`, r.shown && r.n === rows && (!title || r.hd === title)
-    && (title || ['آية اليوم', 'حديث اليوم'].includes(r.hd)), JSON.stringify(r));
+    && (title || ['آية', 'حديث', 'من أقوال السلف'].includes(r.hd)), JSON.stringify(r));
   await ctx.close();
 }
 {
   const { p, ctx } = await open('tv.html', 'panel=verse');
   const both = await p.evaluate(() => {
-    const day = riyadhDayNumber, out = [];
-    for (const k of [0, 1]) { window.riyadhDayNumber = () => day() + k; out.push(quoteOfDay().title); }
-    return out.sort().join(',');
+    const out = [], Q = quotePart;
+    for (const k of [0, 1, 2]) { window.quotePart = () => k; out.push(quoteOfDay().title); }
+    window.quotePart = Q;
+    return out.join(',');
   });
-  check('card verse: a verse one day, a hadith the next', both === 'آية اليوم,حديث اليوم', both);
+  check('card verse: a verse from 00:00, a hadith from 08:00, a saying of the salaf from 16:00', both === 'آية,حديث,من أقوال السلف', both);
+  const parts = await p.evaluate(() => {
+    const R = riyadhParts, out = [];
+    for (const h of [0, 7, 8, 15, 16, 23]) { window.riyadhParts = () => Object.assign(R(), { h }); out.push(quotePart()); }
+    window.riyadhParts = R;
+    return out.join('');
+  });
+  check('card verse: the hour picks the part of the day (0-7, 8-15, 16-23)', parts === '001122', parts);
   await ctx.close();
 }
 
@@ -173,14 +181,14 @@ const atRiyadh = (p, hhmm) => p.evaluate(([hhmm, sample]) => {
   check('adhkar evening (16:00): title, icon, «حتى المغرب», the evening ones only',
     e.hd === 'أذكار المساءحتى المغرب' && e.icon && e.timer && e.text.replace(/[\u064B-\u065F]/g, '').startsWith('بسم') && e.dots === '1000', JSON.stringify(e));
   check('adhkar outside the windows (13:00, 18:30): the verse or hadith of the day, no footer, no timer',
-    [noon, dusk].every(r => /^(آية|حديث) اليوم$/.test(r.hd) && !r.icon && !r.timer && !r.foot && r.text), JSON.stringify([noon, dusk]));
+    [noon, dusk].every(r => /^(آية|حديث|من أقوال السلف)$/.test(r.hd) && !r.icon && !r.timer && !r.foot && r.text), JSON.stringify([noon, dusk]));
   check('adhkar windows: from Fajr up to Dhuhr, from Asr up to Maghrib (and the night before Fajr)', edge.join() === 'true,true,true,false,false,true,true,false', edge.join());
   check('adhkar night (22:00, and 03:00 after midnight): «الآيتان من آخر سورة البقرة» (the hadith\'s words, no invented name), moon icon, «حتى الفجر», only that verse (not the «both» ones), the hadith\'s own words as its source line',
     [n, after].every(r => r.hd === 'الآيتان من آخر سورة البقرةحتى الفجر' && r.icon && r.timer && r.text.replace(/[\u064B-\u065F]/g, '').replace(/﴿/g, '').startsWith('آمن') && r.dots === '1' &&
       r.foot.replace(/[\u064B-\u065F]/g, '').startsWith('من قرأ بهما في ليلة كفتاه · صحيح البخاري ٥٠٠٩')),
     JSON.stringify([n, after]));
   check('adhkar night: from Isha (19:00) until Fajr (04:40), the card in between is the verse card',
-    /^(آية|حديث) اليوم$/.test(nightEdge[0]) && nightEdge.slice(1).every(h => h === 'الآيتان من آخر سورة البقرةحتى الفجر'), nightEdge.join('|'));
+    /^(آية|حديث|من أقوال السلف)$/.test(nightEdge[0]) && nightEdge.slice(1).every(h => h === 'الآيتان من آخر سورة البقرةحتى الفجر'), nightEdge.join('|'));
   const r = await p.evaluate(() => {
     const out = [], st = window.setTimeout, ms = [];
     window.setTimeout = (f, t) => { ms.push(t); return st(f, t); };
@@ -209,7 +217,7 @@ const atRiyadh = (p, hhmm) => p.evaluate(([hhmm, sample]) => {
     adhkarNext(CARDS[0]);
     return [document.getElementById('week-hd').textContent, CARDS[0].ad.t];
   });
-  check('adhkar: when the window closes the card turns to the verse card and the timer stops', /^(آية|حديث) اليوم$/.test(w[0]) && w[1] === 0, JSON.stringify(w));
+  check('adhkar: when the window closes the card turns to the verse card and the timer stops', /^(آية|حديث|من أقوال السلف)$/.test(w[0]) && w[1] === 0, JSON.stringify(w));
   check('adhkar: no script errors', !errors.length, errors.join('; '));
   await ctx.close();
 }
@@ -257,9 +265,11 @@ for (const [width, height] of [[1920, 1080], [1280, 720], [960, 540]]) {
     const r = await p.evaluate(tafsir => {
       if (CONFIG.tafsir) VERSES.forEach(v => { v.tafsir = tafsir; });
       const day = riyadhDayNumber(), card = document.querySelector('.week'), bad = [];
-      const days = 2 * Math.max(VERSES.length, HADITH.length);   // a verse on even days, a hadith on odd: all of both
+      // every verse (part 0), every hadith (part 1) and every saying of the salaf (part 2), each by the day number
+      const runs = [[0, VERSES.length], [1, HADITH.length], [2, SALAF.length]], days = runs.reduce((n, [, m]) => n + m, 0);
       let tallest = 0;
-      for (let k = 0; k < days; k++) {
+      for (const [part, count] of runs) for (let k = 0; k < count; k++) {
+        window.quotePart = () => part;
         window.riyadhDayNumber = () => day + k;
         renderPanel(false);
         const c = card.getBoundingClientRect(), clock = document.querySelector('.clockwrap').getBoundingClientRect();
@@ -272,7 +282,7 @@ for (const [width, height] of [[1920, 1080], [1280, 720], [960, 540]]) {
       }
       return { days, bad, tallest: Math.round(tallest) };
     }, LONG_TAFSIR);
-    check(`every verse and hadith fits the card at ${width}x${height} #${hash} (${r.days} days, tallest ${r.tallest}px)`,
+    check(`every verse, hadith and saying of the salaf fits the card at ${width}x${height} #${hash} (${r.days} days, tallest ${r.tallest}px)`,
       !errors.length && !r.bad.length, `${r.bad.length} spill: ` + r.bad.slice(0, 3).join(' | ') + errors.join('; '));
     await ctx.close();
   }
@@ -283,11 +293,11 @@ for (const [width, height] of [[1920, 1080], [1280, 720], [960, 540]]) {
   const { p, ctx, errors } = await open('tv.html', 'panel=verse');
   const r = await p.evaluate(async () => {
     const day = riyadhDayNumber(), fam = () => getComputedStyle(document.querySelector('#week-list .qt, #week-list li.quote')).fontFamily;
-    window.riyadhDayNumber = () => day - (day % 2);   // a verse day
+    window.quotePart = () => 0;   // the verse's part of the day
     renderPanel(false);
     const verse = { fam: getComputedStyle(document.querySelector('#week-list .qt')).fontFamily, orn: getComputedStyle(document.querySelector('#week-list .orn')).fontFamily };
     await document.fonts.load('20px UthmanicHafs', VERSES[0].text);
-    window.riyadhDayNumber = () => day - (day % 2) + 1;   // a hadith day
+    window.quotePart = () => 1;   // the hadith's
     renderPanel(false);
     return { verse, hadithQt: !!document.querySelector('#week-list .qt'), loaded: document.fonts.check('20px UthmanicHafs', VERSES[0].text),
              status: [...document.fonts].filter(f => f.family.includes('UthmanicHafs')).map(f => f.status) };
@@ -305,7 +315,8 @@ for (const [hash, on] of [['panel=verse', false], ['panel=verse&tafsir=1', true]
   for (const [width, height] of [[1920, 1080], [960, 540]]) {
     const { p, ctx, errors } = await open('tv.html', hash, { width, height });
     const r = await p.evaluate(long => {
-      const per = 2 * VERSES.length, day = per * Math.ceil(riyadhDayNumber() / per), at = k => { window.riyadhDayNumber = () => day + k; renderPanel(false); };
+      // k even: VERSES[k / 2] in the verse's part of the day; k odd: the hadith's part
+      const per = VERSES.length, day = per * Math.ceil(riyadhDayNumber() / per), at = k => { window.riyadhDayNumber = () => day + (k >> 1); window.quotePart = () => k % 2; renderPanel(false); };
       const tafsir = () => document.querySelector('#week-list li.tafsir');
       VERSES[0].tafsir = long; VERSES[1].tafsir = 'تفسير قصير.'; delete VERSES[2].tafsir;
       at(0);
@@ -649,7 +660,7 @@ const mk = p => p.evaluate(() => [...document.querySelectorAll('.mk .m')].map(m 
   ch: m.querySelector('.delta').hidden ? null : m.querySelector('.delta').textContent, up: m.querySelector('.delta').classList.contains('up') })));
 {
   const state = {};
-  const { p, ctx, errors } = await open('tv.html', 'markets=tasi,aramco,gold,btc&mkstyle=prices', { net: marketNet(state) });
+  const { p, ctx, errors } = await open('tv.html', 'mkline=1&markets=tasi,aramco,gold,btc&mkstyle=prices', { net: marketNet(state) });
   await p.waitForTimeout(800);
   let r = await mk(p), up = await p.evaluate(() => document.getElementById('mk-up').textContent);
   check('markets prices: no errors', !errors.length, errors.join('; '));
@@ -665,7 +676,7 @@ const mk = p => p.evaluate(() => [...document.querySelectorAll('.mk .m')].map(m 
   await ctx.close();
 }
 {
-  const { p, ctx } = await open('tv.html', 'markets=aramco,silver,xrp&mkstyle=prices', { net: marketNet({ fail: ['2222.SR'] }) });
+  const { p, ctx } = await open('tv.html', 'mkline=1&markets=aramco,silver,xrp&mkstyle=prices', { net: marketNet({ fail: ['2222.SR'] }) });
   await p.waitForTimeout(800);
   const r = await mk(p);
   check('markets prices: an unknown price and change stay hidden, nothing invented', r[0].px === null && r[0].ch === null, JSON.stringify(r[0]));
@@ -673,14 +684,14 @@ const mk = p => p.evaluate(() => [...document.querySelectorAll('.mk .m')].map(m 
   await ctx.close();
 }
 {
-  const { p, ctx } = await open('tv.html', 'markets=spx,gold&digits=latin&mkstyle=prices', { net: marketNet({}) });
+  const { p, ctx } = await open('tv.html', 'mkline=1&markets=spx,gold&digits=latin&mkstyle=prices', { net: marketNet({}) });
   await p.waitForTimeout(800);
   const r = await mk(p);
   check('markets prices: Latin digits when asked', r[0].px === '6,800|' && r[0].ch === '▼ 1.45%' && r[1].px === '482.26|ر.س', JSON.stringify(r));
   await ctx.close();
 }
-for (const [hash, want, price] of [['', 'تاسي,S&P 500,بيتكوين', false], ['markets=foo', 'تاسي,S&P 500,بيتكوين', false],
-    ['markets=foo,gold,gold,silver,aramco,xrp,btc', 'الذهب,الفضة,أرامكو,ريبل', false], ['mkstyle=bogus', 'تاسي,S&P 500,بيتكوين', false]]) {
+for (const [hash, want, price] of [['', 'تاسي,S&P 500,بيتكوين', false], ['mkline=1&markets=foo', 'تاسي,S&P 500,بيتكوين', false],
+    ['mkline=1&markets=foo,gold,gold,silver,aramco,xrp,btc', 'الذهب,الفضة,أرامكو,ريبل', false], ['mkstyle=bogus', 'تاسي,S&P 500,بيتكوين', false]]) {
   const { p, ctx, errors } = await open('tv.html', hash, { net: marketNet({}) });
   await p.waitForTimeout(500);
   const r = await mk(p), px = await p.evaluate(() => !!document.getElementById('mk-up') || !!document.querySelector('.mk .px'));
@@ -688,7 +699,7 @@ for (const [hash, want, price] of [['', 'تاسي,S&P 500,بيتكوين', false
   await ctx.close();
 }
 for (const [width, height] of [[1920, 1080], [1280, 720], [960, 540]]) {
-  for (const hash of ['markets=tasi,aramco,gold,silver&mkstyle=prices', 'markets=btc,xrp&mkstyle=prices']) {
+  for (const hash of ['mkline=1&markets=tasi,aramco,gold,silver&mkstyle=prices', 'mkline=1&markets=btc,xrp&mkstyle=prices']) {
     const { p, ctx } = await open('tv.html', hash, { width, height, net: marketNet({}) });
     await p.waitForTimeout(800);
     const r = await p.evaluate(() => {
@@ -967,7 +978,7 @@ for (const [width, height, style] of [[1920, 1080, ''], [1280, 720, ''], [960, 5
 
 // ---- slot=markets: the chosen markets with price and change in the bottom-left slot (arrows-only top left)
 {
-  const { p, ctx, errors } = await open('tv.html', 'slot=markets&markets=tasi,gold,btc', { net: marketNet({}) });
+  const { p, ctx, errors } = await open('tv.html', 'mkline=1&slot=markets&markets=tasi,gold,btc', { net: marketNet({}) });
   await p.waitForTimeout(900);
   const r = await p.evaluate(() => ({ label: document.getElementById('slot-label').textContent,
     rows: [...document.querySelectorAll('#match-row .mblock')].map(b => b.innerText.replace(/\s+/g, ' ').trim()) }));
@@ -2728,7 +2739,7 @@ for (const panel of ['shows', 'prayers', 'forecast', 'hourly', 'prayerrow', 'mat
   // the markets line
   {
     let mode = 'ok';
-    const o = await session('markets=tasi,aramco,gold&mkstyle=prices', (r, u) => {
+    const o = await session('mkline=1&markets=tasi,aramco,gold&mkstyle=prices', (r, u) => {
       if (!/finance\.yahoo/.test(u.host)) return r.abort();
       if (mode !== 'ok') return r.fulfill({ status: 429, body: 'x', headers: hdr });
       return r.fulfill({ contentType: 'application/json', headers: hdr, body: yahoo(null, 100, 99) });
@@ -2753,7 +2764,7 @@ for (const panel of ['shows', 'prayers', 'forecast', 'hourly', 'prayerrow', 'mat
   // Yahoo: the proxies only for a network error; 404 once a day; one request for a symbol on the line and in the card
   {
     let mode = '429';
-    const o = await session('markets=aramco&panel=stocks&stocks=2222,ZZZZ', (r, u) => {
+    const o = await session('mkline=1&markets=aramco&panel=stocks&stocks=2222,ZZZZ', (r, u) => {
       if (/allorigins|corsproxy/.test(u.host)) return r.abort();
       if (!/finance\.yahoo/.test(u.host)) return r.abort();
       if (sym(u) === 'ZZZZ') return r.fulfill({ status: 404, body: '{}', headers: hdr });
@@ -2783,7 +2794,7 @@ for (const panel of ['shows', 'prayers', 'forecast', 'hourly', 'prayerrow', 'mat
   {
     const t = new Date().toISOString();
     const FILE = { updated: t, quotes: { '2222.SR': { p: 27.5, v: 27, c: [27, 27.2, 27.5], t }, 'AAPL': { p: 231, v: 230, c: [230, 231], t }, '^TASI.SR': { p: 11600, v: 11500, c: [], t } } };
-    const o = await session('markets=tasi&mkstyle=prices&panel=stocks&stocks=2222,AAPL,1120', (r, u) => {
+    const o = await session('mkline=1&markets=tasi&mkstyle=prices&panel=stocks&stocks=2222,AAPL,1120', (r, u) => {
       if (u.host === 'raw.githubusercontent.com' && u.pathname.endsWith('/data-markets/markets/markets.json')) return r.fulfill({ json: FILE, headers: hdr });
       if (/finance\.yahoo/.test(u.host)) return r.fulfill({ contentType: 'application/json', headers: hdr, body: yahoo(null, 90, 91) });
       return r.abort();
@@ -3242,53 +3253,11 @@ for (const [w, h] of [[1920, 1080], [1280, 720], [960, 540]]) {
 }
 
 
-// ---- «يُتلى الآن» on the screensaver: while the Quran or a station plays in the launcher (window.UrtvNative.nowPlaying(), mocked here) a small
-// card at the top centre says «يُتلى الآن · سورة الكهف · ماهر المعيقلي», in the style of the card beside the clock; it goes when the answer is empty
-const NP_MOCK = answer => `window.__np = ${JSON.stringify(answer)}; window.UrtvNative = { nowPlaying: () => window.__np ? JSON.stringify(window.__np) : '' };`;
-const npState = p => p.evaluate(() => {
-  const n = document.getElementById('np'), b = n.getBoundingClientRect(), main = document.querySelector('.week:not(.np)').getBoundingClientRect(), hijri = document.querySelector('.dates').getBoundingClientRect();
-  const mk = document.querySelector('.markets').getBoundingClientRect();
-  return { shown: !n.hidden && getComputedStyle(n).display !== 'none', text: n.innerText.replace(/\s+/g, ' ').trim(), cx: (b.left + b.right) / 2 / innerWidth, top: b.top / innerHeight, w: b.width / innerWidth,
-           cut: n.scrollWidth > n.clientWidth + 1, clear: b.left > mk.right - 1 && b.right < hijri.left + 1, overMain: b.bottom > main.top && b.top < main.bottom && b.right > main.left && b.left < main.right };
-});
-for (const [style, w, h] of [['current', 1920, 1080], ['dark1', 1920, 1080], ['glass1', 1280, 720], ['dark3', 1280, 720], ['glass3', 960, 540], ['current', 960, 540]]) {
-  const tag = `now playing card (${style}, ${w}x${h})`;
-  const { p, ctx, errors } = await open('tv.html', 'teams=136013&panel=prayers' + (style === 'current' ? '' : '&cardstyle=' + style), { width: w, height: h });
-  const before = await p.evaluate(() => { const n = document.getElementById('np'); return n.hidden || getComputedStyle(n).display === 'none'; });
-  check(`${tag}: nothing in the page without the app (no UrtvNative): the card is hidden`, before && !errors.length, errors.join('; '));
-  await p.evaluate(NP_MOCK({ title: 'سورة الكهف', who: 'ماهر المعيقلي' }) + ' nowPlayingTick();');
-  const s = await npState(p);
-  check(`${tag}: «يُتلى الآن · سورة الكهف · ماهر المعيقلي», at the top, in the middle, clear of the markets and the date`,
-    s.shown && /^يُتلى الآن\s*·\s*سورة الكهف\s*·\s*ماهر المعيقلي$/.test(s.text) && Math.abs(s.cx - .5) < .02 && s.top < .12 && s.clear && !s.cut && !s.overMain, JSON.stringify(s));
-  check(`${tag}: it takes the style of the card beside the clock`,
-    await p.evaluate(st => { const a = getComputedStyle(document.querySelector('.week:not(.np)')), n = getComputedStyle(document.getElementById('np'));
-      return a.borderRadius === n.borderRadius && (st === 'current' || document.documentElement.classList.contains('cs-' + st)); }, style));
-  await p.evaluate(NP_MOCK(null) + ' nowPlayingTick();');
-  check(`${tag}: it goes when the answer is empty (playback stopped)`, !(await npState(p)).shown);
-  await p.evaluate(NP_MOCK({ title: 'إذاعة القرآن الكريم من القاهرة والعالم', who: 'بث مباشر' }) + ' nowPlayingTick();');
-  const l = await npState(p);
-  check(`${tag}: a long station name stays on one line, inside the screen, never «…»`, l.shown && !l.cut && l.w < .45 && !l.text.includes('…') && l.text.endsWith('بث مباشر'), JSON.stringify(l));
-  await p.evaluate(NP_MOCK({ title: '<img src=x onerror=alert(1)>', who: '' }) + ' nowPlayingTick();');
-  check(`${tag}: the words go in as text (no markup), and with no reciter no stray «·»`,
-    await p.evaluate(() => !document.querySelector('#np img') && document.getElementById('np-s').hidden && document.getElementById('np-t').textContent.startsWith('<img')));
-  await p.evaluate(() => { window.UrtvNative = { nowPlaying: () => { throw new Error('boom'); } }; nowPlayingTick(); });
-  check(`${tag}: an error from the app hides it and breaks nothing`, !(await npState(p)).shown && !errors.length, errors.join('; '));
-  await ctx.close();
-}
-{   // the minute: asked once at the start and then every minute, not faster
-  const { p, ctx } = await open('tv.html', 'teams=136013&panel=prayers', { now: HOME_NOW });
-  await p.evaluate(() => { window.__asks = 0; window.UrtvNative = { nowPlaying: () => { window.__asks++; return JSON.stringify({ title: 'سورة طه', who: 'x' }); } }; });
-  await p.clock.runFor(59000);
-  const early = await p.evaluate(() => window.__asks);
-  await p.clock.runFor(2000);
-  const later = await p.evaluate(() => window.__asks);
-  check('now playing card: the page asks the app once a minute, not more often', early === 0 && later === 1, early + ' ' + later);
-  await ctx.close();
-}
-{   // the launcher's cards never show it
-  const { p, ctx, errors } = await open('tv.html', 'teams=136013&panel=matches&widget=1', { width: 461, height: 250, init: null });
-  await p.evaluate(NP_MOCK({ title: 'سورة الكهف', who: 'x' }) + ' try { nowPlayingTick(); } catch(e) {}');
-  check('now playing card: not part of the launcher\'s home cards', !errors.length && await p.evaluate(() => { const n = document.getElementById('np'); return !n || n.hidden || getComputedStyle(n).display === 'none'; }), errors.join('; '));
+// ---- this copy has no «يُتلى الآن» card on the screensaver (no Quran recitations; the Quran radio plays under the screensaver as it is)
+{
+  const { p, ctx, errors } = await open('tv.html', 'panel=verse');
+  const r = await p.evaluate(() => ({ card: !!document.getElementById('np'), tick: typeof window.nowPlayingTick }));
+  check('no «يُتلى الآن» card and nothing asks the app what plays', !errors.length && !r.card && r.tick === 'undefined', JSON.stringify(r) + errors.join('; '));
   await ctx.close();
 }
 

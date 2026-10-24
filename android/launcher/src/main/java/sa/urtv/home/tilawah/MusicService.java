@@ -577,6 +577,7 @@ public class MusicService extends Service implements AudioManager.OnAudioFocusCh
         resumeAfterAdhan = false;
         handler.removeCallbacks(previewStop);
         releasePlayer();
+        abandonFocus();   // at once, so what the adhan paused carries on now
         playing = false;
         buffering = false;
         prepared = false;
@@ -648,9 +649,11 @@ public class MusicService extends Service implements AudioManager.OnAudioFocusCh
 
     // ---- audio focus ----
 
+    /** The adhan asks for the sound for a while only (transient): what was playing (YouTube or any app) pauses for it and carries on
+     *  when it ends and the focus is given back. The Quran radio asks for it to keep, like any player. */
     private boolean requestFocus() {
-        return audio.requestAudioFocus(this, AudioManager.STREAM_MUSIC,
-                AudioManager.AUDIOFOCUS_GAIN) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
+        int kind = source == Prefs.SOURCE_ADHAN ? AudioManager.AUDIOFOCUS_GAIN_TRANSIENT : AudioManager.AUDIOFOCUS_GAIN;
+        return audio.requestAudioFocus(this, AudioManager.STREAM_MUSIC, kind) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
     }
 
     private void abandonFocus() {

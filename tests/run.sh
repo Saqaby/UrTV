@@ -47,7 +47,6 @@ python3 tests/music_adhan_own_test.py
 python3 tests/own_adhan_test.py
 python3 tests/pill_text_test.py
 python3 tests/tasks_card_test.py
-python3 tests/now_playing_test.py
 python3 tests/digits_text_test.py
 python3 tests/page_stamp_test.py
 python3 tests/greeting_test.py
@@ -55,4 +54,5 @@ python3 tests/card_box_test.py
 python3 tests/adhan_bar_test.py
 python3 tests/clock_zone_test.py
 python3 tests/countdown_text_test.py
+python3 tests/custom_test.py
 node tests/page.test.mjs

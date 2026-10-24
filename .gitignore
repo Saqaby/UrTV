@@ -23,9 +23,7 @@ optimize/lists/mine.txt
 /unsplash/
 /quran-verify/
 
-# Thmanyah: its licence allows the files only inside a built product, so they come from the private
-# tshi-dev/urtv-fonts repo at build time (CI), never from here; urtv.html inlines them, so it is not committed either
-assets/fonts/Thmanyah*.woff2
-android/launcher/src/main/assets/fonts/Thmanyah*.otf
+# This copy has no access to the private Thmanyah fonts: the files named Thmanyah*.woff2 / *.otf here are
+# IBM Plex Sans Arabic (SIL OFL 1.1, assets/fonts/IBMPlexSansArabic-OFL.txt) under the names the code expects
 dist/urtv.html
 .fonts-private/

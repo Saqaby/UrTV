@@ -45,7 +45,6 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
 import android.widget.TextView;
-import sa.urtv.home.tilawah.NowPlaying;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -106,7 +105,7 @@ public class MainActivity extends Activity {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable rotateWallpaper = this::nextWallpaper;
     static final long WALLPAPER_INTERVAL_MS = 10 * 60 * 1000;
-    private TextView greeting, weatherLine, clock, ampm, date, zoneLine, title, appsLabel;
+    private TextView greeting, weatherLine, clock, ampm, date, gregLine, zoneLine, ramadanLine, title, appsLabel;
     private Pill wifiPill;   // the network's name shows while it has the focus
     private Greeting greetingLine;
     private int glowColor = 0xFF3A3A3A;
@@ -116,7 +115,7 @@ public class MainActivity extends Activity {
     private int packageSeq;
     private PopupWindow inputsPopup;
     private HomeCard homeCard;
-    private NowCard nowCard;   // «يُتلى الآن»: at the right end of the pills row while a surah or a station is on
+    private Pill radioPill;   // «إذاعة القرآن», gold and «إيقاف الإذاعة» while the radio plays
     private Pill sleepPill;   // «مؤقت النوم», with the minutes left while it runs (shown while it has the focus)
     private TextView adhanBar;   // «الأذان بعد ٨ دقائق», over the top edge
     private View clockBlock, bottomBlock;   // the greeting, clock and date; the app title and the dock under it
@@ -125,12 +124,7 @@ public class MainActivity extends Activity {
         @Override public void onReceive(Context c, Intent i) {
             updateClock();
             updateWifi();
-            updateNowPlaying();   // the minutes left of its sleep timer
         }
-    };
-    // «تلاوة» started, paused, changed or stopped a surah or a station (MusicService says so; nothing polls): the «يُتلى الآن» card follows
-    private final BroadcastReceiver nowPlayingChanged = new BroadcastReceiver() {
-        @Override public void onReceive(Context c, Intent i) { updateNowPlaying(); }
     };
     // the sleep timer started, ended or was cancelled (here, or from the computer): the pill follows at once
     private final BroadcastReceiver sleepChanged = new BroadcastReceiver() {
@@ -168,7 +162,6 @@ public class MainActivity extends Activity {
         registerReceiver(packages, pf);
         registerReceiver(dockChanged, new IntentFilter(Dock.CHANGED));
         registerReceiver(sleepChanged, new IntentFilter(SleepTimer.CHANGED));
-        registerReceiver(nowPlayingChanged, new IntentFilter(NowPlaying.CHANGED));
     }
 
     @Override
@@ -181,7 +174,6 @@ public class MainActivity extends Activity {
         registerReceiver(tick, tf);
         updateClock();
         updateWifi();
-        updateNowPlaying();
         homeCard.refresh();
         wireFocus();   // the «المهام» card may have come or gone with the settings
         View last = lastFocusedId == View.NO_ID ? null : findViewById(lastFocusedId);
@@ -212,7 +204,6 @@ public class MainActivity extends Activity {
         unregisterReceiver(packages);
         unregisterReceiver(dockChanged);
         unregisterReceiver(sleepChanged);
-        unregisterReceiver(nowPlayingChanged);
         homeCard.destroy();
         super.onDestroy();
     }
@@ -388,67 +379,55 @@ public class MainActivity extends Activity {
         date = text(14, "regular", 0xFFC6BBA4);
         date.setSingleLine(true);
         left.addView(date, llp(-2, -2, 0, dp(-6), dp(4), 0));   // the display font leaves a deep gap under its digits
+        // the Hijri date (Umm al-Qura) is the main line; the Gregorian one, smaller, under it
+        gregLine = text(11, "regular", 0xFFC6BBA4);
+        gregLine.setSingleLine(true);
+        gregLine.setAlpha(0.85f);
+        left.addView(gregLine, llp(-2, -2, 0, dp(1), dp(4), 0));
         // «بتوقيت دبي», only when the city's clock is not the TV's (as the screensaver's line under its clock)
         zoneLine = text(12, "regular", GOLD);
         zoneLine.setSingleLine(true);
         zoneLine.setVisibility(View.GONE);
         left.addView(zoneLine, llp(-2, -2, 0, dp(1), dp(4), 0));
-        for (TextView t : new TextView[]{greeting, weatherLine, clock, ampm, date, zoneLine}) t.setShadowLayer(dp(3), 0, dp(1), 0x80000000);
+        // the Ramadan window: «باقٍ على رمضان ١٠٧ يومًا», in Ramadan «رمضان مبارك · اليوم ٥» (RamadanText)
+        ramadanLine = text(13, "regular", 0xFFFFFDF6);
+        ramadanLine.setSingleLine(true);
+        ramadanLine.setPadding(dp(11), dp(4), dp(11), dp(5));
+        GradientDrawable chip = new GradientDrawable();
+        chip.setCornerRadius(dp(15));
+        chip.setColor(0x59000000);
+        chip.setStroke(dp(1), 0x73D6AF6B);
+        ramadanLine.setBackground(chip);
+        ramadanLine.setVisibility(View.GONE);
+        left.addView(ramadanLine, llp(-2, -2, 0, dp(8), dp(4), 0));
+        for (TextView t : new TextView[]{greeting, weatherLine, clock, ampm, date, gregLine, zoneLine}) t.setShadowLayer(dp(3), 0, dp(1), 0x80000000);
         left.setGravity(Gravity.RIGHT);
-        for (TextView t : new TextView[]{greeting, weatherLine, date, zoneLine}) t.setGravity(Gravity.RIGHT);
+        for (TextView t : new TextView[]{greeting, weatherLine, date, gregLine, zoneLine}) t.setGravity(Gravity.RIGHT);
         header.addView(left, new FrameLayout.LayoutParams(-2, -2, Gravity.RIGHT | Gravity.TOP));
         clockBlock = left;
 
         LinearLayout right = new LinearLayout(this);
         right.setGravity(Gravity.CENTER_VERTICAL);
         right.setClipChildren(false);
-        Pill saver = pill("شاشة التوقف", R.drawable.ic_screensaver);
-        saver.setOnClickListener(v -> openPackage(SAVER_PKG));
         Pill inputs = pill("المصادر", R.drawable.ic_input);
         inputs.setOnClickListener(v -> showInputs(v));
         wifiPill = pill("واي فاي", R.drawable.ic_wifi);
         wifiPill.setOnClickListener(v -> launch(new Intent(Settings.ACTION_WIFI_SETTINGS)));
-        Pill tasks = pill("المهام", R.drawable.ic_mic);   // the list lives in the screensaver app
-        tasks.setOnClickListener(v -> launch(new Intent(this, TasksActivity.class)));
+        // «الإعدادات»: a small menu (the adhan, the favourites, the tasks, the screensaver), and the TV's own settings at its end
         Pill settings = pill("الإعدادات", R.drawable.ic_settings);
-        settings.setOnClickListener(v -> launch(new Intent(Settings.ACTION_SETTINGS)));
-        // the «تلاوة وأذان» pill: the Quran, the radio and the adhan are part of this app, so it opens them right here
-        Pill tilawah = pill("تلاوة وأذان", R.drawable.ic_listen);
-        tilawah.setOnClickListener(v -> launch(new Intent(this, sa.urtv.home.tilawah.MainActivity.class)));
+        settings.setOnClickListener(v -> showSettings(v));
         sleepPill = pill("مؤقت النوم", R.drawable.ic_sleep);
         sleepPill.setOnClickListener(v -> showSleep(v));
-        List<Pill> row = new ArrayList<>(Arrays.asList(inputs, wifiPill, settings, sleepPill));
-        if (isInstalled(SAVER_PKG)) { row.add(tasks); row.add(saver); }
-        if (getResources().getBoolean(R.bool.show_listening)) row.add(tilawah);
+        // «إذاعة القرآن»: the Saudi Quran Radio and, with it, the screensaver; pressed again while it plays, it stops
+        radioPill = pill("إذاعة القرآن", R.drawable.ic_listen);
+        radioPill.setOnClickListener(v -> toggleQuranRadio());
+        List<Pill> row = new ArrayList<>(Arrays.asList(inputs, wifiPill, settings, sleepPill, radioPill));
         for (Pill p : row) {
             right.addView(p, llp(-2, dp(Pill.HEIGHT), dp(10), 0, 0, 0));
             pills.add(p);
         }
-        // «يُتلى الآن»: the first child of the row, so it sits at its right end and the pills keep their places when it comes
-        nowCard = new NowCard(this, font("medium"), font("regular"), getDrawable(R.drawable.ic_play), getDrawable(R.drawable.ic_pause));
-        nowCard.setId(View.generateViewId());
-        nowCard.setVisibility(View.GONE);
-        nowCard.setOnClickListener(v -> NowPlaying.toggle(this));   // OK: pause or play
-        nowCard.setOnLongClickListener(v -> { startActivity(NowPlaying.player(this)); return true; });   // a long OK: the player
-        nowCard.setOnFocusChangeListener((v, has) -> {
-            if (has) { lastFocusedId = v.getId(); scroll.smoothScrollTo(0, 0); fadeGlow(1f); }
-        });
-        right.addView(nowCard, 0, llp(-2, dp(Pill.HEIGHT), dp(10), 0, 0, 0));
         header.addView(right, new FrameLayout.LayoutParams(-2, -2, Gravity.LEFT | Gravity.TOP));
         return header;
-    }
-
-    /** Shows or hides the «يُتلى الآن» card by what «تلاوة» is doing: a surah or a station (playing or paused), else nothing. */
-    private void updateNowPlaying() {
-        if (nowCard == null) return;
-        NowPlaying.State s = NowPlaying.read(this);
-        if (!s.show) {
-            if (nowCard.getVisibility() == View.VISIBLE && nowCard.hasFocus() && !pills.isEmpty()) pills.get(0).requestFocus();   // it went with the playback
-            nowCard.setVisibility(View.GONE);
-            return;
-        }
-        nowCard.bind(s);
-        nowCard.setVisibility(View.VISIBLE);
     }
 
     /** Pill button: its icon only; the one with the focus widens to show its name (see Pill). */
@@ -509,10 +488,21 @@ public class MainActivity extends Activity {
         dockCards.clear();
         gridCards.clear();
 
+        // Five apps or fewer: the band is as wide as its tiles, centred, and the tiles are larger the fewer they are
+        // (3 or fewer: 160 dp, 4 or 5: 130 dp); more: the band fills the width and they share it, as before.
+        boolean fit = dock.size() <= 5;
+        int tileW = dock.size() <= 3 ? dp(160) : dp(130), gap = fit ? dp(22) : dp(10);
+        LinearLayout.LayoutParams band = (LinearLayout.LayoutParams) dockRow.getLayoutParams();
+        band.width = fit ? -2 : -1;
+        band.gravity = Gravity.CENTER_HORIZONTAL;
+        dockRow.setLayoutParams(band);
+        LinearLayout.LayoutParams tl = (LinearLayout.LayoutParams) title.getLayoutParams();
+        tl.gravity = fit ? Gravity.CENTER_HORIZONTAL : Gravity.NO_GRAVITY;
+        title.setLayoutParams(tl);
         for (int i = 0; i < dock.size(); i++) {
             View tile = tile(dock.get(i), true);
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1f);
-            p.setMargins(i == 0 ? 0 : dp(10), 0, i == dock.size() - 1 ? 0 : dp(10), 0);
+            LinearLayout.LayoutParams p = fit ? new LinearLayout.LayoutParams(tileW, -2) : new LinearLayout.LayoutParams(0, -2, 1f);
+            p.setMargins(i == 0 ? 0 : gap, 0, i == dock.size() - 1 ? 0 : gap, 0);
             dockRow.addView(tile, p);
         }
 
@@ -645,12 +635,6 @@ public class MainActivity extends Activity {
             p.setNextFocusDownId(card != null ? card.getId() : dockId != View.NO_ID ? dockId : p.getId());
         }
         int topId = card != null ? card.getId() : pills.get(0).getId();
-        if (nowCard != null) {   // the «يُتلى الآن» card: down to the cards or the dock, left and up to the pills (right: the end of the row)
-            nowCard.setNextFocusLeftId(pills.get(0).getId());
-            nowCard.setNextFocusUpId(pills.get(0).getId());
-            nowCard.setNextFocusRightId(nowCard.getId());
-            nowCard.setNextFocusDownId(card != null ? card.getId() : dockId != View.NO_ID ? dockId : nowCard.getId());
-        }
         if (card != null) {
             card.setNextFocusLeftId(card.getId());   // nothing beside it to move to: stay on it
             card.setNextFocusRightId(card.getId());
@@ -733,7 +717,7 @@ public class MainActivity extends Activity {
                 labels.add("إزالة من المفضلة");
                 actions.add(() -> { dock.remove(pkg); saveDock(dock, dock.get(Math.max(0, i - 1))); });
             } else {
-                labels.add("المفضلة لا تقل عن " + arabicDigits(String.valueOf(MIN_DOCK)));
+                labels.add("أبقِ تطبيقًا واحدًا على الأقل");
                 actions.add(() -> { });
             }
         } else if (dock.size() < MAX_DOCK) {
@@ -826,6 +810,79 @@ public class MainActivity extends Activity {
         inputsPopup = pw;
         pw.showAsDropDown(anchor, 0, dp(8), Gravity.START);
         rows.get(0).requestFocus();
+    }
+
+    /** «الإعدادات»: الأذان، ترتيب المفضلة، المهام، شاشة التوقف (the last two live in the screensaver app), then the TV's settings. */
+    private void showSettings(View anchor) {
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.setPadding(dp(8), dp(8), dp(8), dp(8));
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(dp(16));
+        bg.setColor(0xF02A2A2E);
+        bg.setStroke(dp(1), 0x26FFFFFF);
+        list.setBackground(bg);
+        PopupWindow pw = new PopupWindow(list, dp(230), -2, true);
+        List<TextView> rows = new ArrayList<>();
+        rows.add(inputRow("الأذان", () -> launch(new Intent(this, sa.urtv.home.tilawah.MainActivity.class))));
+        rows.add(inputRow("ترتيب المفضلة", () -> launch(new Intent(this, DockActivity.class))));
+        if (isInstalled(SAVER_PKG)) {
+            rows.add(inputRow("المهام", () -> launch(new Intent(this, TasksActivity.class))));
+            rows.add(inputRow("شاشة التوقف", () -> openPackage(SAVER_PKG)));
+        }
+        rows.add(inputRow("إعدادات التلفزيون", () -> launch(new Intent(Settings.ACTION_SETTINGS))));
+        for (int i = 0; i < rows.size(); i++) {
+            TextView r = rows.get(i);
+            r.setOnClickListener(v -> { pw.dismiss(); ((Runnable) v.getTag()).run(); });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(36));
+            if (i == rows.size() - 1) lp.topMargin = dp(8);   // the TV's own settings, a little apart from ours
+            list.addView(r, lp);
+        }
+        for (int i = 0; i < rows.size(); i++) {
+            TextView r = rows.get(i);
+            r.setNextFocusUpId(rows.get(Math.max(0, i - 1)).getId());
+            r.setNextFocusDownId(rows.get(Math.min(rows.size() - 1, i + 1)).getId());
+            r.setNextFocusLeftId(r.getId());
+            r.setNextFocusRightId(r.getId());
+        }
+        pw.setOutsideTouchable(true);
+        pw.setElevation(dp(16));
+        pw.setOnDismissListener(() -> anchor.requestFocus());
+        pw.showAsDropDown(anchor, 0, dp(8), Gravity.START);
+        rows.get(0).requestFocus();
+    }
+
+    /** «إذاعة القرآن»: off, it starts the Saudi Quran Radio and the screensaver over it; on, it stops the radio. */
+    private void toggleQuranRadio() {
+        if (sa.urtv.home.tilawah.NowPlaying.quranRadioOn()) {
+            sa.urtv.home.tilawah.NowPlaying.stop(this);
+            handler.postDelayed(this::updateRadioPill, 400);
+            return;
+        }
+        sa.urtv.home.tilawah.NowPlaying.playQuranRadio(this);
+        handler.postDelayed(this::updateRadioPill, 400);
+        if (!isInstalled(SAVER_PKG)) return;
+        // the TV's own screensaver (its dream, which is ours), the way optimize/start-saver.sh starts it; some TVs refuse it
+        // to apps: then, a few seconds on, the screensaver's full-screen page instead. The radio plays on under either.
+        try {
+            startActivity(new Intent().setClassName("com.android.systemui", "com.android.systemui.Somnambulator")
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (RuntimeException ignored) { }
+        handler.postDelayed(() -> {
+            if (!hasWindowFocus()) return;   // the dream is up (or something else is in front): nothing more to do
+            try {
+                startActivity(new Intent().setClassName(SAVER_PKG, SAVER_PKG + ".MainActivity")
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
+            } catch (RuntimeException ignored) { }
+        }, 2500);
+    }
+
+    /** The pill says what pressing it will do: start the radio, or stop it while it plays (gold then). */
+    private void updateRadioPill() {
+        if (radioPill == null) return;
+        boolean on = sa.urtv.home.tilawah.NowPlaying.quranRadioOn();
+        radioPill.setLabel(on ? "إيقاف الإذاعة" : "إذاعة القرآن");
+        radioPill.setAccent(on);
     }
 
     /** «مؤقت النوم»: 15, 30, 60, 90 minutes, or cancel; at the end the TV goes to sleep (SleepTimer says how). */
@@ -921,7 +978,7 @@ public class MainActivity extends Activity {
         zoneLine.setVisibility(other ? View.VISIBLE : View.GONE);
         if (other) zoneLine.setText(ClockZone.label(zone[0]));
         if (gregFormat == null) {
-            gregFormat = new SimpleDateFormat("d MMMM", new Locale("ar"));
+            gregFormat = new SimpleDateFormat("d MMMM y", new Locale("ar"));
             try {
                 hijriFormat = new android.icu.text.SimpleDateFormat("EEEE، d MMMM y", new android.icu.util.ULocale("ar_SA@calendar=islamic-umalqura"));
             } catch (Exception ignored) { }
@@ -935,11 +992,45 @@ public class MainActivity extends Activity {
         try {
             if (hijriFormat != null) hijri = hijriFormat.format(now.getTime()).replaceAll("\\s*هـ\\s*$", "") + " هـ";
         } catch (Exception ignored) { }
-        String greg = gregFormat.format(now.getTime());
-        date.setText(arabicDigits(hijri.isEmpty() ? greg : hijri + "  –  " + greg));
+        String greg = gregFormat.format(now.getTime()) + "م";
+        date.setText(arabicDigits(hijri.isEmpty() ? greg : hijri));
+        gregLine.setText(arabicDigits(greg));
+        gregLine.setVisibility(hijri.isEmpty() ? View.GONE : View.VISIBLE);
+        updateRamadan(ms, tz);
         updateAdhanBar(cfg);
         sa.urtv.home.tilawah.AdhanSync.onConfig(this, cfg.fragment);   // «تعديل وقت الصلاة» changed on the TV: the alarm follows
         updateSleepPill();
+        updateRadioPill();
+    }
+
+    // the Ramadan window, worked out once a day (the city's date): days to 1 Ramadan, or the day of it, by Umm al-Qura
+    private String ramadanDay = "";
+    private void updateRamadan(long ms, String tz) {
+        try {
+            android.icu.util.TimeZone zone = android.icu.util.TimeZone.getTimeZone(tz);
+            android.icu.util.Calendar cal = android.icu.util.Calendar.getInstance(zone, new android.icu.util.ULocale("ar_SA@calendar=islamic-umalqura"));
+            cal.setTimeInMillis(ms);
+            String key = cal.get(android.icu.util.Calendar.YEAR) + "-" + cal.get(android.icu.util.Calendar.DAY_OF_YEAR);
+            if (key.equals(ramadanDay)) return;
+            ramadanDay = key;
+            final int RAMADAN = 8;   // ICU's Islamic months count from 0 (Muharram)
+            String words;
+            if (cal.get(android.icu.util.Calendar.MONTH) == RAMADAN) {
+                words = RamadanText.text(0, cal.get(android.icu.util.Calendar.DAY_OF_MONTH));
+            } else {
+                int days = 0;
+                while (days < 400) {
+                    cal.add(android.icu.util.Calendar.DAY_OF_MONTH, 1);
+                    days++;
+                    if (cal.get(android.icu.util.Calendar.MONTH) == RAMADAN && cal.get(android.icu.util.Calendar.DAY_OF_MONTH) == 1) break;
+                }
+                words = RamadanText.text(days, 0);
+            }
+            ramadanLine.setText(arabicDigits(words));
+            ramadanLine.setVisibility(View.VISIBLE);
+        } catch (RuntimeException e) {
+            ramadanLine.setVisibility(View.GONE);   // no Umm al-Qura calendar on this TV: no window rather than a wrong count
+        }
     }
 
     /** Once a minute with the clock: the bar before the adhan shows in the last 10 minutes, and until the iqama. */
@@ -1005,7 +1096,7 @@ public class MainActivity extends Activity {
 
     // Hosted photos (photos/index.json in the repo) join the bundled ones. Each is downloaded once into
     // files/photos and reused; offline or on any failure the next bundled photo is shown instead.
-    static final String PHOTO_BASE = "https://raw.githubusercontent.com/tshi-dev/UrTV/master/photos/";
+    static final String PHOTO_BASE = "https://raw.githubusercontent.com/Saqaby/UrTV/master/photos/";
     static final long INDEX_MAX_AGE_MS = 24 * 3600 * 1000L;
 
     static final int PHOTO_SET = 5, PHOTO_PERIOD_DAYS = 4;
@@ -1385,17 +1476,6 @@ public class MainActivity extends Activity {
         if (e.getKeyCode() == KeyEvent.KEYCODE_MENU && e.getAction() == KeyEvent.ACTION_UP && !pills.isEmpty()) {
             showInputs(pills.get(0));
             return true;
-        }
-        // On the «يُتلى الآن» card ◀ is the previous surah and ▶ the next (a station has none: ◀ goes back to the pills as on any pill)
-        if (e.getAction() == KeyEvent.ACTION_DOWN && nowCard != null && getCurrentFocus() == nowCard
-                && (e.getKeyCode() == KeyEvent.KEYCODE_DPAD_LEFT || e.getKeyCode() == KeyEvent.KEYCODE_DPAD_RIGHT)) {
-            NowPlaying.State s = NowPlaying.read(this);
-            if (s.show && !s.radio) {
-                if (e.getRepeatCount() == 0) {
-                    if (e.getKeyCode() == KeyEvent.KEYCODE_DPAD_LEFT) NowPlaying.prev(this); else NowPlaying.next(this);
-                }
-                return true;
-            }
         }
         // In a right to left layout Android looks for the focus the other way round, so the rows are
         // walked by hand here: «right» always moves the highlight to the right.

@@ -11,7 +11,7 @@
     <uses-permission android:name="sa.urtv.screensaver.READ_CONFIG" />
     <!-- «المهام»: add, finish and delete tasks kept by the screensaver (signature permission, same key) -->
     <uses-permission android:name="sa.urtv.screensaver.WRITE_TASKS" />
-    <!-- the «تلاوة» screens: the Quran and the radio, living in this app -->
+    <!-- the adhan's playback -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
@@ -21,11 +21,6 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <!-- the adhan sets the TV's volume to its own level and puts it back afterwards -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
-
-    <!-- the screensaver (same signing key) asks what is playing, for its «يُتلى الآن» card -->
-    <permission
-        android:name="sa.urtv.home.READ_NOW_PLAYING"
-        android:protectionLevel="signature" />
 
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
@@ -130,20 +125,13 @@
             <meta-data android:name="android.accessibilityservice" android:resource="@xml/sleep_service" />
         </service>
 
-        <!-- the «تلاوة» screens: the Quran recitations and the radio, inside the home screen (the «تلاوة» pill).
-             Not exported and with no launcher category on purpose: it must not show up among the apps. -->
+        <!-- «الأذان» (from the home screen's settings menu) and the player shown while the adhan plays. This copy has no Quran
+             recitations or radio. Not exported and with no launcher category on purpose: it must not show up among the apps. -->
 
         <activity
             android:name=".tilawah.MainActivity"
             android:exported="false"
             android:launchMode="singleTop"
-            android:screenOrientation="landscape"
-            android:theme="@style/App"
-            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|uiMode|density" />
-
-        <activity
-            android:name=".tilawah.SurahActivity"
-            android:exported="false"
             android:screenOrientation="landscape"
             android:theme="@style/App"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|uiMode|density" />
@@ -175,16 +163,10 @@
             android:permission="android.permission.DUMP">
             <intent-filter>
                 <action android:name="sa.urtv.home.GET_PLAYER" />
-                <action android:name="sa.urtv.home.PLAY_SURAH" />
-                <action android:name="sa.urtv.home.PLAY_RADIO" />
                 <action android:name="sa.urtv.home.PAUSE" />
                 <action android:name="sa.urtv.home.RESUME" />
                 <action android:name="sa.urtv.home.TOGGLE" />
-                <action android:name="sa.urtv.home.NEXT" />
-                <action android:name="sa.urtv.home.PREV" />
                 <action android:name="sa.urtv.home.STOP" />
-                <action android:name="sa.urtv.home.SLEEP" />
-                <action android:name="sa.urtv.home.SEEK_BY" />
                 <action android:name="sa.urtv.home.ADHAN" />
                 <action android:name="sa.urtv.home.ADHAN_VOLUME" />
                 <action android:name="sa.urtv.home.ADHAN_RESCHEDULE" />
@@ -197,13 +179,6 @@
 
         <!-- «أذان من ملفي»: the shell hands over the person's own adhan recording here (`content write`, optimize/music.sh
              adhan add); DUMP = only the shell. It only writes; nothing can be read back. -->
-        <!-- what is playing (one row while a surah or a station plays), read by the screensaver's card; same key only -->
-        <provider
-            android:name=".tilawah.NowPlayingProvider"
-            android:authorities="sa.urtv.home.nowplaying"
-            android:exported="true"
-            android:readPermission="sa.urtv.home.READ_NOW_PLAYING" />
-
         <provider
             android:name=".tilawah.OwnAdhanProvider"
             android:authorities="sa.urtv.home.adhan"

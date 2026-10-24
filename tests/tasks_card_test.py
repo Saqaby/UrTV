@@ -35,5 +35,5 @@ check("MainActivity: the order is re-wired when the settings bring the card or t
 check("TasksActivity: from the card the first render focuses «🎤 تكلّم», later ones the list as before",
       'EXTRA_MIC = "mic"' in tasks and "if (micFirst && mic.getVisibility() == View.VISIBLE) f = mic;" in tasks and "micFirst = false;" in tasks)
 check("TasksActivity: the mic still starts the voice adding on OK", 'mic = pill("🎤 تكلّم", GOLD, v -> listen());' in tasks)
-check("the «المهام» pill still opens the list as it did (no mic-first)", 'tasks.setOnClickListener(v -> launch(new Intent(this, TasksActivity.class)))' in main)
+check("«المهام» in the settings menu opens the list as the pill did (no mic-first)", 'inputRow("المهام", () -> launch(new Intent(this, TasksActivity.class)))' in main)
 sys.exit(1 if failed else 0)

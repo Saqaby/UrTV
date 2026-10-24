@@ -51,6 +51,13 @@ public final class NowPlaying {
 
     public static void toggle(Context c) { MusicService.toggle(c); }
 
+    /** «إذاعة القرآن» on the home screen: the Saudi Quran Radio (station 0 of assets/quran/stations.json), the only station this copy plays. */
+    public static final int QURAN_RADIO = 0;
+    public static void playQuranRadio(Context c) { MusicService.playRadio(c, QURAN_RADIO); }
+    /** The Quran radio is on (playing, or getting ready to). */
+    public static boolean quranRadioOn() { return MusicService.currentSource() == Prefs.SOURCE_RADIO; }
+    public static void stop(Context c) { MusicService.stopAction(c); }
+
     public static void next(Context c) { MusicService.nextAction(c); }
 
     public static void prev(Context c) { MusicService.prevAction(c); }

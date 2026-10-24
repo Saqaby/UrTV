@@ -22,8 +22,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The «تلاوة» screen: three sections that never share a page. The tab bar switches between the
- * reciters, the live stations and the adhan (today's times, the switch and the muezzin).
+ * «الأذان», opened from the home screen's settings menu: today's times (OK on one plays the adhan now), the switch, the
+ * muezzin and the adhan's volume. This copy has no Quran recitations or radio, so only the adhan section is left: no tab bar.
  */
 public class MainActivity extends Activity {
 
@@ -32,12 +32,11 @@ public class MainActivity extends Activity {
     private static final int KIND_RESUME = 0, KIND_RECITER = 1, KIND_STATION = 2,
             KIND_PRAYER = 3, KIND_ADHAN_TOGGLE = 4, KIND_VOICE = 5, KIND_VOLUME = 6, KIND_EXACT = 7;
 
-    private Catalog cat;
     private Prefs prefs;
     private ListView list;
     private ViewGroup tabs;
     private TextView[] tabViews;
-    private int tab = TAB_RECITERS;
+    private int tab = TAB_ADHAN;
     private RowsAdapter adapter;
     private View lastSelected;
     private boolean focusedOnce;
@@ -46,12 +45,14 @@ public class MainActivity extends Activity {
         super.onCreate(state);
         sa.urtv.home.Digits.init(this);   // the screensaver's «الأرقام» setting
         setContentView(R.layout.activity_main);
-        cat = Catalog.get(this);
         prefs = new Prefs(this);
 
         Ui.text((TextView) findViewById(R.id.title), "ThmanyahDisplay-Bold.otf", 44, R.color.sand);
         Ui.text((TextView) findViewById(R.id.tagline), "Thmanyah-Regular.otf", 17, R.color.dim);
         Ui.text((TextView) findViewById(R.id.hint), "Thmanyah-Regular.otf", 14, R.color.dim);
+        ((TextView) findViewById(R.id.title)).setText("الأذان");
+        ((TextView) findViewById(R.id.tagline)).setText("يُرفع في وقت كل صلاة فوق أي شاشة، ما دام التلفزيون يعمل");
+        ((TextView) findViewById(R.id.hint)).setText("اختيار على صلاة: الأذان الآن  •  يمين/يسار على «صوت الأذان»: أعلى/أخفض  •  رجوع للواجهة");
 
         list = findViewById(R.id.list);
         adapter = new RowsAdapter();
@@ -79,15 +80,7 @@ public class MainActivity extends Activity {
         });
         list.setOnItemClickListener((parent, view, position, id) -> {
             Row row = adapter.rows.get(position);
-            if (row.kind == KIND_RESUME) {
-                MusicService.resumeLast(this);
-                openPlayer();
-            } else if (row.kind == KIND_RECITER) {
-                startActivity(new Intent(this, SurahActivity.class).putExtra("reciter", row.index));
-            } else if (row.kind == KIND_STATION) {
-                MusicService.playRadio(this, row.index);
-                openPlayer();
-            } else if (row.kind == KIND_PRAYER) {
+            if (row.kind == KIND_PRAYER) {
                 MusicService.adhan(this, prefs.playVoice(this), Adhan.name(prefs.playVoice(this)), 0);
                 openPlayer();
             } else if (row.kind == KIND_ADHAN_TOGGLE) {
@@ -117,7 +110,8 @@ public class MainActivity extends Activity {
                 focusList(firstSelectable());
             });
         }
-        selectTab(TAB_RECITERS);
+        tabs.setVisibility(View.GONE);   // one section only
+        selectTab(TAB_ADHAN);
 
         if (Build.VERSION.SDK_INT >= 33
                 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -136,7 +130,7 @@ public class MainActivity extends Activity {
         adapter.rebuild();
         int target;
         if (!focusedOnce) {
-            target = firstReciter();
+            target = firstSelectable();
             focusedOnce = true;
         } else {
             target = list.getSelectedItemPosition();
@@ -170,13 +164,6 @@ public class MainActivity extends Activity {
         return Math.min(i, Math.max(0, adapter.getCount() - 1));
     }
 
-    private int firstReciter() {
-        for (int i = 0; i < adapter.rows.size(); i++) {
-            if (adapter.rows.get(i).kind == KIND_RECITER) return i;
-        }
-        return firstSelectable();
-    }
-
     private void focusList(int position) {
         list.setSelection(position);
         list.post(() -> {
@@ -188,49 +175,11 @@ public class MainActivity extends Activity {
         });
     }
 
-    @Override public boolean dispatchKeyEvent(KeyEvent event) {
-        // the list swallows «up» even on its first row, so the jump back to the tabs happens here
-        if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0
-                && event.getKeyCode() == KeyEvent.KEYCODE_DPAD_UP
-                && list != null && list.hasFocus()
-                && list.getSelectedItemPosition() <= firstSelectable()) {
-            tabViews[tab].requestFocus();
-            return true;
-        }
-        return super.dispatchKeyEvent(event);
-    }
-
     @Override public boolean onKeyDown(int keyCode, KeyEvent event) {
         // on «صوت الأذان» left/right are the volume: left louder, right quieter (the bar fills from the right, like the page)
         if ((keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) && list.hasFocus()
                 && tab == TAB_ADHAN && selectedKind() == KIND_VOLUME) {
             changeVolume(keyCode == KeyEvent.KEYCODE_DPAD_LEFT ? 10 : -10);
-            return true;
-        }
-        // left/right walk the tab bar from anywhere on the screen: the sections are one key apart
-        if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
-            // RTL: the first tab sits on the right, so right is «previous»
-            int delta = keyCode == KeyEvent.KEYCODE_DPAD_RIGHT ? -1 : 1;
-            int next = Math.max(TAB_RECITERS, Math.min(TAB_ADHAN, tab + delta));
-            if (next == tab) return true;
-            boolean fromTabs = tabs.hasFocus();
-            selectTab(next);
-            if (fromTabs) tabViews[next].requestFocus();
-            else focusList(firstSelectable());
-            return true;
-        }
-        if (tabs.hasFocus()) {
-            if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN || keyCode == KeyEvent.KEYCODE_DPAD_CENTER
-                    || keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
-                focusList(firstSelectable());
-                return true;
-            }
-            if (keyCode == KeyEvent.KEYCODE_DPAD_UP) return true;
-        }
-        // up from the first row lands on the tab bar instead of doing nothing
-        if (keyCode == KeyEvent.KEYCODE_DPAD_UP && list.hasFocus()
-                && list.getSelectedItemPosition() <= firstSelectable()) {
-            tabViews[tab].requestFocus();
             return true;
         }
         return super.onKeyDown(keyCode, event);
@@ -319,29 +268,7 @@ public class MainActivity extends Activity {
 
         void rebuild() {
             rows.clear();
-            if (tab == TAB_RECITERS) {
-                if (prefs.source() == Prefs.SOURCE_SURAH) {
-                    int index = cat.reciterIndex(prefs.reciter());
-                    if (index >= 0) {
-                        rows.add(new Row(false, KIND_RESUME, getString(R.string.continue_listening),
-                                getString(R.string.continue_detail,
-                                        cat.surahName(prefs.surah()), cat.reciters.get(index).name), index));
-                    }
-                }
-                for (int i = 0; i < cat.reciters.size(); i++) {
-                    Catalog.Reciter reciter = cat.reciters.get(i);
-                    rows.add(new Row(false, KIND_RECITER, reciter.name,
-                            getString(R.string.surah_count, Ui.arabic(reciter.surahs)), i));
-                }
-            } else if (tab == TAB_STATIONS) {
-                if (prefs.source() == Prefs.SOURCE_RADIO && prefs.station() < cat.stations.size()) {
-                    rows.add(new Row(false, KIND_RESUME, getString(R.string.continue_listening),
-                            cat.stations.get(prefs.station()).name, -1));
-                }
-                for (int i = 0; i < cat.stations.size(); i++) {
-                    rows.add(new Row(false, KIND_STATION, cat.stations.get(i).name, getString(R.string.live), i));
-                }
-            } else {
+            {
                 // the adhan section: today's times with the next one marked, then the switch and the muezzin
                 PrayerTimes times = PrayerTimes.today(MainActivity.this);
                 PrayerTimes.Next next = PrayerTimes.next(MainActivity.this);

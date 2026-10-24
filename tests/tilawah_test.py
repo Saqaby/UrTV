@@ -91,7 +91,7 @@ check("one app in the build", "':listening'" not in gradle, gradle.strip().split
 check("the tilawah classes live in the launcher",
       (TILAWAH / "MusicService.java").exists() and (TILAWAH / "Catalog.java").exists())
 for name in ["Catalog", "MainActivity", "MusicReceiver", "MusicService", "PlayerActivity", "Prefs",
-             "SurahActivity", "Ui", "Adhan", "AdhanActivity", "AdhanReceiver", "AdhanScheduler",
+             "Ui", "Adhan", "AdhanActivity", "AdhanReceiver", "AdhanScheduler",
              "Place", "PrayerTimes"]:
     source = TILAWAH / f"{name}.java"
     if not source.exists():
@@ -126,7 +126,8 @@ check("TV banner and icon set", app.get(A + "banner") == "@drawable/banner"
       and app.get(A + "icon") == "@mipmap/ic_launcher")
 
 activities = {a.get(A + "name"): a for a in app.findall("activity")}
-for name in [".tilawah.MainActivity", ".tilawah.SurahActivity", ".tilawah.PlayerActivity",
+check("this copy has no surah list (no Quran recitations)", not (TILAWAH / "SurahActivity.java").exists() and ".tilawah.SurahActivity" not in text(APP / "AndroidManifest.xml"))
+for name in [".tilawah.MainActivity", ".tilawah.PlayerActivity",
              ".tilawah.AdhanActivity"]:
     activity = activities.get(name)
     check(f"{name} exists and is private",
@@ -149,10 +150,12 @@ check("ADB receiver needs the shell-only DUMP permission",
       receiver.get(A + "permission") == "android.permission.DUMP", receiver.get(A + "permission"))
 check("ADB receiver is exported", receiver.get(A + "exported") == "true")
 actions = {a.get(A + "name") for a in receiver.find("intent-filter").findall("action")}
-expected = {"GET_PLAYER", "PLAY_SURAH", "PLAY_RADIO", "PAUSE", "RESUME", "TOGGLE",
-            "NEXT", "PREV", "STOP", "SLEEP", "SEEK_BY", "ADHAN", "ADHAN_ON", "ADHAN_OFF", "VOICE", "ADHAN_OWN"}
-check("ADB receiver exposes every action", expected <= {a.rsplit(".", 1)[-1] for a in actions},
+expected = {"GET_PLAYER", "PAUSE", "RESUME", "TOGGLE", "STOP", "ADHAN", "ADHAN_ON", "ADHAN_OFF", "VOICE", "ADHAN_OWN"}
+check("ADB receiver exposes every adhan action", expected <= {a.rsplit(".", 1)[-1] for a in actions},
       sorted(expected - {a.rsplit(".", 1)[-1] for a in actions}))
+gone = {"PLAY_SURAH", "PLAY_RADIO", "NEXT", "PREV", "SLEEP", "SEEK_BY"}
+check("no surah or radio action is exposed (this copy has none)", not gone & {a.rsplit(".", 1)[-1] for a in actions},
+      sorted(gone & {a.rsplit(".", 1)[-1] for a in actions}))
 check("the old listening actions are gone",
       all("sa.urtv.listening" not in text(f) for f in [APP / "AndroidManifest.xml"]))
 
@@ -179,7 +182,8 @@ check("the continue row is «متابعة التلاوة»",
       labels.get("continue_listening") == "متابعة التلاوة", labels.get("continue_listening"))
 
 home = text(JAVA / "MainActivity.java")
-check("the home screen has the «تلاوة وأذان» pill", 'pill("تلاوة وأذان"' in home and "tilawah.MainActivity" in home)
+check("the home screen's settings menu opens «الأذان»", 'inputRow("الأذان"' in home and "tilawah.MainActivity" in home)
+check("no «تلاوة وأذان» pill on the home screen", 'pill("تلاوة وأذان"' not in home)
 
 card = text(JAVA / "HomeCard.java")
 check("the home card reads the screensaver's settings",
@@ -215,9 +219,9 @@ check("every voice is named", "عبدالملك الملا" in adhan and "عبد
 check("the adhan is cached on the TV", "getCacheDir()" in adhan)
 
 main = text(TILAWAH / "MainActivity.java")
-check("the screen has three sections",
-      all(t in main for t in ("TAB_RECITERS", "TAB_STATIONS", "TAB_ADHAN")))
-check("left/right switches the section", "KEYCODE_DPAD_LEFT" in main and "selectTab(" in main)
+check("the screen is the adhan section alone, without the tab bar",
+      "selectTab(TAB_ADHAN)" in main and "tabs.setVisibility(View.GONE)" in main and "SurahActivity" not in main)
+check("left/right on «صوت الأذان» change the volume", "KEYCODE_DPAD_LEFT" in main and "changeVolume(" in main)
 check("the sections are drawn as a tab bar",
       'android:id="@+id/tabs"' in text(APP / "res/layout/activity_main.xml")
       and "@+id/tab_adhan" in text(APP / "res/layout/activity_main.xml"))
@@ -234,7 +238,6 @@ check("the tilawah screens are laid out right to left",
       all('android:layoutDirection="rtl"' in text(APP / ("res/layout/" + f))
           for f in ("activity_main.xml", "activity_surah.xml", "activity_adhan.xml",
                     "activity_player.xml")))
-check("the right key moves to the right", "KEYCODE_DPAD_RIGHT ? -1 : 1" in main)
 check("the home is laid out right to left",
       "LAYOUT_DIRECTION_RTL" in text(JAVA / "MainActivity.java"))
 check("the home walks its rows by hand",
@@ -244,7 +247,6 @@ check("the app tiles are walked too",
 home_java = text(JAVA / "MainActivity.java")
 check("the clock comes first and the ص after it",
       home_java.index("clockRow.addView(clock);") < home_java.index("clockRow.addView(ampm"))
-check("the surah grid is walked by hand", "moveCell" in text(TILAWAH / "SurahActivity.java"))
 
 service_src = text(TILAWAH / "MusicService.java")
 check("a surah pauses for the adhan", "prepareAdhanPause" in service_src)

@@ -199,7 +199,7 @@ public class DockActivity extends Activity {
     // ---------------------------------------------------------------- actions
 
     private void remove(int i) {
-        if (row.size() <= Dock.MIN) { toast("المفضلة لا تقل عن " + ar(Dock.MIN) + " تطبيقات"); return; }
+        if (row.size() <= Dock.MIN) { toast("أبقِ تطبيقًا واحدًا على الأقل"); return; }
         row.remove(i);
         Dock.save(this, row);
         render(Math.min(i, row.size() - 1));

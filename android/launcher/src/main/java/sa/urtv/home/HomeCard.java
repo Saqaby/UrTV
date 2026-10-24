@@ -33,7 +33,7 @@ import java.util.Collections;
 final class HomeCard {
     private static final Uri CONFIG = Uri.parse("content://sa.urtv.screensaver.config");
     private static final String PREFS = "homecard";   // the last settings read from the screensaver
-    private static final String FONTS = "https://raw.githubusercontent.com/tshi-dev/UrTV/master/assets/fonts/";
+    private static final String FONTS = "https://raw.githubusercontent.com/Saqaby/UrTV/master/assets/fonts/";
 
     /** The box in pixels, {width, height}, for that many cards; asked again whenever the screen is laid out. */
     interface Sizer { int[] box(int cards); }

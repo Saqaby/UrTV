@@ -17,7 +17,7 @@ import java.util.Set;
 
 /** The favourites row: one set of rules for the home screen, its «ترتيب المفضلة» screen and ADB (DockReceiver). */
 final class Dock {
-    static final int MIN = 5;    // the row never shows fewer apps than this
+    static final int MIN = 1;    // the row never shows fewer apps than this (this copy: one is enough)
     static final int MAX = 10;   // tiles share the row width, so 10 still fit at 1080p
     static final String CHANGED = "sa.urtv.home.DOCK_CHANGED";   // tells a running home screen to redraw
 

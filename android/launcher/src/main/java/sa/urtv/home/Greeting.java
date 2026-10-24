@@ -63,6 +63,16 @@ final class Greeting {
             String line = GreetingText.weather(sp.getInt("code", -1), sp.getFloat("dust", 0), s.city, sp.getFloat("temp", 0), s.latin)
                     + "\n" + GreetingText.sun(d.sunLabel, d.sunClock, s.latin);
             weather.setText(line);
+            // the sky's icon before the line (night: the next sun event is the sunrise)
+            String icon = GreetingText.icon(sp.getInt("code", -1), sp.getFloat("dust", 0), "الشروق".equals(d.sunLabel));
+            int id = context.getResources().getIdentifier("wx_" + icon, "drawable", context.getPackageName());
+            android.graphics.drawable.Drawable art = id == 0 ? null : context.getDrawable(id);
+            if (art != null) {
+                int size = Math.round(22 * context.getResources().getDisplayMetrics().density);
+                art.setBounds(0, 0, size, size);
+            }
+            weather.setCompoundDrawablesRelative(art, null, null, null);
+            weather.setCompoundDrawablePadding(Math.round(8 * context.getResources().getDisplayMetrics().density));
             weather.setVisibility(android.view.View.VISIBLE);
         } else {
             weather.setVisibility(android.view.View.GONE);   // offline, or not asked yet: the greeting alone

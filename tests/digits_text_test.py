@@ -23,7 +23,7 @@ norm = lambda s: re.sub(r"public (static|final)", r"\1", s).replace("package sa.
 check("the screensaver app's DigitsText is the launcher's, with its package", norm(a).replace("public ", "") == norm(b).replace("public ", ""), "the two copies differ")
 check("Digits.java (the launcher's state) reads the setting like the other settings, through ConfigSnapshot, and keeps it",
       "ConfigSnapshot.read(c)" in (HOME / "Digits.java").read_text(encoding="utf-8") and "putBoolean(\"latin\"" in (HOME / "Digits.java").read_text(encoding="utf-8"))
-for act in ["MainActivity", "TasksActivity", "DockActivity", "tilawah/MainActivity", "tilawah/SurahActivity", "tilawah/PlayerActivity", "tilawah/AdhanActivity"]:
+for act in ["MainActivity", "TasksActivity", "DockActivity", "tilawah/MainActivity", "tilawah/PlayerActivity", "tilawah/AdhanActivity"]:
     check(f"launcher {act}: starts with Digits.init (its numbers follow the setting)", "Digits.init(this)" in (HOME / (act + ".java")).read_text(encoding="utf-8"))
 check("settings: every number and label goes through conv() and the setting is read at each render",
       "latinDigits = DigitsText.isLatin(prefs.digits());" in (APP / "SettingsActivity.java").read_text(encoding="utf-8")
