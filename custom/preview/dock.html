@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920">
+<title>ترتيب المفضلة</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500&display=swap">
+<style>
+/* نسخة HTML من «ترتيب المفضلة» (android/launcher/.../DockActivity.java)، المقاسات dp × 2 */
+:root{
+  --gold:#D6AF6B; --ink:#04120C; --text:#F6EFE0; --dim:#C6BBA4; --warn:#EE8B70; --warn-ink:#FFD9CF;
+  --f:"Thmanyah","IBM Plex Sans Arabic",system-ui,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:1920px;height:1080px;overflow:hidden;font-family:var(--f);color:var(--text);
+  background:linear-gradient(180deg,#0A2016,#04120C 50%,#020806)}
+.scroll{height:1080px;overflow-y:auto;scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+.col{width:1200px;margin:0 auto;padding:72px 0 96px;display:flex;flex-direction:column}
+h1{margin:0;font-size:52px;font-weight:500}
+.sub{margin:12px 0 0;color:var(--dim);font-size:28px}
+.count{margin:12px 0 48px;color:var(--gold);font-size:26px;font-weight:500}
+.list{display:flex;flex-direction:column;gap:16px}
+.row{display:flex;gap:20px}
+.card{flex:1;display:flex;align-items:center;gap:24px;padding:20px 32px;border-radius:28px;cursor:pointer;
+  background:rgba(255,255,255,.08);border:2px solid rgba(214,175,107,.12);font-size:34px;font-weight:500}
+.card .n{color:var(--gold);font-size:30px;min-width:44px;text-align:center}
+.card .ic{width:60px;height:60px;border-radius:14px;flex:none}
+.card .arrows{margin-right:auto;color:var(--ink);font-size:28px}
+.card.focus{background:rgba(214,175,107,.2);border-color:var(--gold)}
+.card.lifted{background:var(--gold);border-color:var(--gold);color:var(--ink)}
+.card.lifted .n{color:var(--ink)}
+.card.text{justify-content:center}
+.remove{width:168px;flex:none;border-radius:28px;display:grid;place-items:center;font-size:26px;font-weight:500;cursor:pointer;
+  color:var(--dim);background:rgba(255,255,255,.05);border:2px solid rgba(255,255,255,.08)}
+.remove.focus{color:var(--warn-ink);background:rgba(238,139,112,.2);border-color:var(--warn)}
+h2{margin:44px 0 16px;color:var(--gold);font-size:26px;font-weight:500}
+.reset{margin-top:44px}
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);padding:20px 40px;border-radius:40px;background:rgba(20,20,20,.92);
+  font-size:28px;opacity:0;transition:opacity .25s;pointer-events:none}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="scroll" id="scroll">
+  <div class="col">
+    <h1>ترتيب المفضلة</h1>
+    <p class="sub" id="sub"></p>
+    <div class="count" id="count"></div>
+    <div class="list" id="list"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="apps.js"></script>
+<script>
+const ar = n => String(n).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);
+let row = loadDock(), moving = -1;
+document.getElementById('sub').textContent = `اختيار على تطبيق لتحريكه بالأسهم (أعلى/أسفل) ثم اختيار لتثبيته. من ${ar(DOCK_MIN)} إلى ${ar(DOCK_MAX)} تطبيقات.`;
+// كل عنصر قابل للتركيز: {el, col: 0 بطاقة | 1 إزالة, line}
+let items = [], at = {line: 0, col: 0};
+
+function toast(t){ const e = document.getElementById('toast'); e.textContent = t; e.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => e.classList.remove('show'), 2200); }
+function save(){ saveDock(row); try { parent.postMessage({dock: row}, '*'); } catch (e) {} }
+
+function card(key, badge, cls, onClick){
+  const d = document.createElement('div');
+  d.className = 'card ' + (cls || '');
+  if (key) d.innerHTML = `<span class="n">${badge}</span><span class="ic" style="background:${ALL_APPS[key][1]}"></span><span>${ALL_APPS[key][0]}</span><span class="arrows">${cls === 'lifted' ? '▲▼' : ''}</span>`;
+  else d.textContent = badge;
+  d.onclick = onClick;
+  return d;
+}
+
+function render(focusLine){
+  const list = document.getElementById('list');
+  list.innerHTML = ''; items = [];
+  document.getElementById('count').textContent = `المفضلة ${ar(row.length)} من ${ar(DOCK_MAX)}`;
+  row.forEach((k, i) => {
+    const r = document.createElement('div'); r.className = 'row';
+    const c = card(k, ar(i + 1), i === moving ? 'lifted' : '', () => { if (moving === i) drop(); else { moving = i; render(i); } });
+    const x = document.createElement('div'); x.className = 'remove'; x.textContent = 'إزالة'; x.onclick = () => remove(i);
+    r.append(c, x); list.append(r);
+    items.push([c, x]);
+  });
+  const others = Object.keys(ALL_APPS).filter(k => !row.includes(k)).sort((a, b) => ALL_APPS[a][0].localeCompare(ALL_APPS[b][0], 'ar'));
+  if (others.length){
+    const h = document.createElement('h2'); h.textContent = 'إضافة تطبيق'; list.append(h);
+    others.forEach(k => { const c = card(k, '+', '', () => add(k)); list.append(c); items.push([c]); });
+  }
+  const reset = card(null, 'الترتيب الافتراضي', 'text reset', () => { row = DOCK_DEFAULT.slice(); moving = -1; save(); render(0); toast('رجعت المفضلة للترتيب الافتراضي'); });
+  list.append(reset); items.push([reset]);
+  at = {line: Math.max(0, Math.min(focusLine, items.length - 1)), col: 0};
+  paint();
+}
+function paint(){
+  items.flat().forEach(e => e.classList.remove('focus'));
+  const e = items[at.line][Math.min(at.col, items[at.line].length - 1)];
+  if (!e.classList.contains('lifted')) e.classList.add('focus');
+  e.scrollIntoView({block: 'nearest'});
+}
+function remove(i){
+  if (row.length <= DOCK_MIN) return toast('أبقِ تطبيقًا واحدًا على الأقل');
+  row.splice(i, 1); save(); render(Math.min(i, row.length - 1));
+}
+function add(k){
+  if (row.length >= DOCK_MAX) return toast(`المفضلة ممتلئة (${ar(DOCK_MAX)})`);
+  row.push(k); save(); render(row.length - 1); toast('أُضيف ' + ALL_APPS[k][0]);
+}
+function drop(){ const i = moving; moving = -1; save(); render(i); }
+
+addEventListener('keydown', e => {
+  const k = e.key;
+  if (moving >= 0){
+    if (k === 'ArrowUp' && moving > 0){ [row[moving - 1], row[moving]] = [row[moving], row[moving - 1]]; moving--; render(moving); }
+    else if (k === 'ArrowDown' && moving < row.length - 1){ [row[moving + 1], row[moving]] = [row[moving], row[moving + 1]]; moving++; render(moving); }
+    else if (k === 'Enter' || k === 'Escape' || k === 'Backspace') drop();
+    e.preventDefault(); return;
+  }
+  if (k === 'Escape' || k === 'Backspace') { location.href = 'home.html'; return; }
+  if (k === 'ArrowUp') at.line = Math.max(0, at.line - 1);
+  else if (k === 'ArrowDown') at.line = Math.min(items.length - 1, at.line + 1);
+  else if (k === 'ArrowLeft') at.col = 1;    // «إزالة» على يسار البطاقة
+  else if (k === 'ArrowRight') at.col = 0;
+  else if (k === 'Enter') { items[at.line][Math.min(at.col, items[at.line].length - 1)].click(); e.preventDefault(); return; }
+  else return;
+  e.preventDefault(); paint();
+});
+render(0);
+</script>
+</body>
+</html>

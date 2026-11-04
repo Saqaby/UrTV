@@ -1,0 +1,108 @@
+<title>واجهة تلفزيونك</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500&display=swap">
+<style>
+/* معاينة الشاشتين بمقاس التلفزيون 1920×1080 مصغّرتين لعرض الصفحة */
+:root{
+  --bg:#0c120f; --panel:#141c18; --line:#26322b; --fg:#efe8d8; --muted:#a49b88; --gold:#d6af6b;
+  --f:"IBM Plex Sans Arabic",system-ui,sans-serif;
+  color-scheme:dark;
+}
+body{background:var(--bg);color:var(--fg);font-family:var(--f);direction:rtl;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+.wrap{max-width:1280px;margin:0 auto;display:grid;gap:16px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 20px}
+h1{margin:0;font-size:24px;font-weight:500}
+h1 span{color:var(--gold)}
+.note{color:var(--muted);font-size:13px;margin:0}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tab{font:inherit;font-size:15px;padding:8px 16px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--fg);cursor:pointer}
+.tab[aria-selected="true"]{background:var(--gold);color:#1a1408;border-color:var(--gold)}
+.tab:focus-visible,select:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+label{font-size:14px;color:var(--muted);display:flex;gap:8px;align-items:center}
+select{font:inherit;font-size:14px;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--fg)}
+.tv{position:relative;width:100%;max-width:100%;aspect-ratio:16/9;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:#000}
+.tv iframe{position:absolute;top:0;left:0;width:1920px;height:1080px;border:0;transform-origin:0 0}
+.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.legend div{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:14px;line-height:1.7;min-width:0}
+.legend b{color:var(--gold);font-weight:500}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>واجهة <span>تلفزيونك</span></h1>
+    <p class="note">مستخرجة من tshi-dev/urtv · المقاس الأصلي 1920×1080 · البيانات تجريبية</p>
+  </header>
+
+  <div class="bar" role="tablist">
+    <button class="tab" id="tab-home" role="tab" aria-selected="true" data-src="home.html">الشاشة الرئيسية</button>
+    <button class="tab" id="tab-saver" role="tab" aria-selected="false" data-src="saver.html">شاشة التوقف</button>
+    <button class="tab" id="tab-dock" role="tab" aria-selected="false" data-src="dock.html">ترتيب المفضلة</button>
+    <button class="tab" id="tab-adhan" role="tab" aria-selected="false" data-src="adhan.html">الأذان</button>
+    <label id="panel-wrap" hidden>البطاقة بجانب الساعة
+      <select id="panel">
+        <option value="verse">آية · حديث · قول سلف (كل ٨ ساعات)</option>
+        <option value="prayers">مواقيت الصلاة اليوم</option>
+        <option value="prayerrow">الصلوات في صف</option>
+        <option value="forecast">طقس الأيام القادمة</option>
+        <option value="hourly">طقس الساعات القادمة</option>
+        <option value="adhkar">أذكار الصباح والمساء</option>
+        <option value="wisdom">حكمة اليوم</option>
+        <option value="today">يومك</option>
+        <option value="year">السنة</option>
+        <option value="none">بدون بطاقة</option>
+      </select>
+    </label>
+    <label id="q8-wrap" hidden>عرض الفترة
+      <select id="q8"><option value="">حسب الوقت الآن</option><option value="0">آية</option><option value="1">حديث</option><option value="2">قول سلف</option></select>
+    </label>
+    <label id="card-wrap">البطاقة
+      <select id="card"><option value="1">ظاهرة</option><option value="0">مخفية</option></select>
+    </label>
+  </div>
+
+  <div class="tv" id="tv"><iframe id="screen" title="شاشة التلفزيون" src="home.html"></iframe></div>
+
+  <div class="legend" id="legend">
+    <div><b>الشاشة الرئيسية</b> مكتوبة بـ Java في التطبيق الأصلي، وهذه نسخة HTML منها بالمقاسات والألوان نفسها. اضغط داخلها ثم استخدم الأسهم للتنقل كالريموت.</div>
+    <div><b>شاشة التوقف</b> هي صفحة التطبيق الأصلية نفسها (dist/tv.html) بلا تعديل في التصميم، مع بيانات تجريبية للطقس. أُزيلت منها المباريات والأسهم.</div>
+    <div><b>قائمة الإعدادات</b> في الشاشة الرئيسية: اختر زر الإعدادات (الترس) واضغط Enter أو انقر عليه، وفيها الأذان وترتيب المفضلة والمهام وشاشة التوقف وإعدادات التلفاز.</div>
+    <div><b>ترتيب المفضلة</b> هي شاشة التطبيق نفسها لإضافة التطبيقات وحذفها وترتيبها (من ٥ إلى ١٠). عدّل فيها ثم ارجع إلى «الشاشة الرئيسية» لترى النتيجة. على التلفاز: الإعدادات ← الشاشة الرئيسية ← ترتيب التطبيقات المفضلة.</div>
+    <div><b>الفرق عن التلفزيون</b> خط «ثمانية» غير موجود في المستودع لأسباب الترخيص، فتظهر الشاشتان بخط بديل.</div>
+  </div>
+</div>
+
+<script>
+const frame = document.getElementById('screen'), tv = document.getElementById('tv');
+const panel = document.getElementById('panel'), card = document.getElementById('card'), q8 = document.getElementById('q8');
+let current = 'home.html';
+function fit(){ frame.style.transform = `scale(${tv.clientWidth / 1920})`; }
+function load(){
+  // تغيير الـ hash وحده لا يعيد تحميل الصفحة، فنمرّ بصفحة فارغة أولًا
+  const next = current === 'saver.html' ? `saver.html#teams=&slot=none&panel=${panel.value}${q8.value ? '&q8=' + q8.value : ''}` : current;
+  frame.src = 'about:blank';
+  setTimeout(() => { frame.src = next; }, 30);
+  document.getElementById('panel-wrap').hidden = current !== 'saver.html';
+  document.getElementById('card-wrap').hidden = current !== 'home.html';
+  document.getElementById('q8-wrap').hidden = current !== 'saver.html' || panel.value !== 'verse';
+}
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.tab').forEach(x => x.setAttribute('aria-selected', x === b));
+  current = b.dataset.src; load();
+}));
+panel.addEventListener('change', load);
+q8.addEventListener('change', load);
+card.addEventListener('change', () => frame.contentWindow.postMessage({card: card.value === '1'}, '*'));
+// صف المفضلة يُحفظ هنا أيضًا، فيصل إلى الشاشة الرئيسية حتى لو منع المتصفح التخزين
+let dock = null;
+addEventListener('message', e => {
+  if (e.data && Array.isArray(e.data.dock)) dock = e.data.dock;
+  if (e.data && e.data.go) document.querySelector(`.tab[data-src="${e.data.go}"]`)?.click();   // «شاشة التوقف» من قائمة الإعدادات
+});
+frame.addEventListener('load', () => {
+  if (current !== 'home.html') return;
+  frame.contentWindow.postMessage({card: card.value === '1'}, '*');
+  if (dock) frame.contentWindow.postMessage({dock}, '*');
+});
+new ResizeObserver(fit).observe(tv); fit();
+</script>

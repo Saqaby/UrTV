@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920">
+<title>الأذان</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500&display=swap">
+<style>
+/* تعديل: شاشة «الأذان» وحدها داخل قائمة الإعدادات، بدل تبويب الأذان في «تلاوة وأذان» المحذوف. نفس أسلوب «ترتيب المفضلة» */
+:root{--gold:#D6AF6B;--ink:#04120C;--text:#F6EFE0;--dim:#C6BBA4;--f:"Thmanyah","IBM Plex Sans Arabic",system-ui,sans-serif;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;width:1920px;height:1080px;overflow:hidden;font-family:var(--f);color:var(--text);background:linear-gradient(180deg,#0A2016,#04120C 50%,#020806)}
+.col{width:1200px;margin:0 auto;padding:72px 0;display:flex;flex-direction:column}
+h1{margin:0;font-size:52px;font-weight:500}
+.sub{margin:12px 0 48px;color:var(--dim);font-size:28px;line-height:1.5}
+.list{display:flex;flex-direction:column;gap:16px}
+.row{display:flex;align-items:center;gap:24px;padding:24px 36px;border-radius:28px;cursor:pointer;
+  background:rgba(255,255,255,.08);border:2px solid rgba(214,175,107,.12);font-size:34px;font-weight:500}
+.row.focus{background:rgba(214,175,107,.2);border-color:var(--gold)}
+.row .v{margin-right:auto;color:var(--gold);display:flex;align-items:center;gap:20px}
+.row .v small{color:var(--dim);font-size:24px}
+.row.off .v{color:var(--dim)}
+.arrow{color:var(--dim);font-size:26px}
+.bar{width:260px;height:10px;border-radius:5px;background:rgba(255,255,255,.15);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--gold)}
+.note{margin-top:32px;color:var(--dim);font-size:24px;line-height:1.6}
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);padding:20px 40px;border-radius:40px;background:rgba(20,20,20,.92);font-size:28px;opacity:0;transition:opacity .25s;pointer-events:none}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="col">
+  <h1>الأذان</h1>
+  <p class="sub">يُرفع الأذان في وقت كل صلاة بتوقيت مدينتك، أيًّا كان المعروض على الشاشة، ما دام التلفاز يعمل.</p>
+  <div class="list" id="list"></div>
+  <p class="note">عند الأذان يتوقف صوت ما يُعرض مؤقتًا (يوتيوب أو غيره)، ثم يعود بعد انتهائه. ويرجع مستوى صوت التلفاز كما كان.<br>Esc للرجوع إلى الشاشة الرئيسية</p>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+// المؤذنون الـ٢١ كما في التطبيق (tilawah/Adhan.java)
+const VOICES = ['عبدالملك الملا','عبدالرحمن خاشقجي','عبدالعزيز بخاري','عبدالمطلب نجدي','سامي ديولي','ماجد حكيم','محمد ماجد حكيم','ناجي قزاز',
+  'الحرم المكي','فجر الحرم المكي','الحرم المكي ٢','المسجد الأقصى','أذان القاهرة','أذان القاهرة ٢','أذان مصر','أذان عجمان','أذان أم القيوين','أذان عُمان','أذان تونس','أذان ماليزيا','أذان المالديف'];
+const ar = n => String(n).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);
+let st = {on: true, voice: 0, vol: 30};
+try { Object.assign(st, JSON.parse(localStorage.getItem('adhan') || '{}')); } catch (e) {}
+const save = () => { try { localStorage.setItem('adhan', JSON.stringify(st)); } catch (e) {} };
+let at = 0;
+function toast(t){ const e = document.getElementById('toast'); e.textContent = t; e.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => e.classList.remove('show'), 2200); }
+
+// كل صف: [العنوان, القيمة, OK, يمين/يسار]
+const ROWS = [
+  () => ['الأذان', st.on ? 'يعمل' : 'متوقف', () => { st.on = !st.on; }, null, !st.on],
+  () => ['المؤذن', `<span class="arrow">‹</span>${VOICES[st.voice]}<span class="arrow">›</span>`, null, d => { st.voice = (st.voice + d + VOICES.length) % VOICES.length; toast('يُسمِعك ثوانيَ من الأذان'); }],
+  () => ['صوت الأذان', `<span class="bar"><i style="width:${st.vol}%"></i></span>${ar(st.vol)}٪`, null, d => { st.vol = Math.max(10, Math.min(100, st.vol + d * 10)); toast('يُسمِعك ثانيتين بالمستوى الجديد'); }],
+  () => ['جرّب الأذان الآن', '<small>OK للتشغيل</small>', () => toast('يُرفع الأذان الآن للتجربة')],
+];
+function render(){
+  document.getElementById('list').innerHTML = ROWS.map((f, i) => { const [t, v, , , off] = f(); return `<div class="row${i === at ? ' focus' : ''}${off ? ' off' : ''}" data-i="${i}"><span>${t}</span><span class="v">${v}</span></div>`; }).join('');
+  document.querySelectorAll('.row').forEach(r => r.onclick = () => { at = +r.dataset.i; act('Enter'); });
+}
+function act(k){
+  const [, , ok, side] = ROWS[at]();
+  if (k === 'Enter' && ok) ok();
+  else if (side && (k === 'ArrowLeft' || k === 'ArrowRight')) side(k === 'ArrowLeft' ? 1 : -1);   // RTL: اليسار = التالي
+  save(); render();
+}
+addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown') at = Math.min(ROWS.length - 1, at + 1);
+  else if (e.key === 'ArrowUp') at = Math.max(0, at - 1);
+  else if (e.key === 'Escape' || e.key === 'Backspace') { location.href = 'home.html'; return; }
+  else if (['Enter', 'ArrowLeft', 'ArrowRight'].includes(e.key)) { act(e.key); e.preventDefault(); return; }
+  else return;
+  e.preventDefault(); render();
+});
+render();
+</script>
+</body>
+</html>
