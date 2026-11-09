@@ -58,6 +58,17 @@ public final class NowPlaying {
     public static boolean quranRadioOn() { return MusicService.currentSource() == Prefs.SOURCE_RADIO; }
     public static void stop(Context c) { MusicService.stopAction(c); }
 
+    /** Friday's «سورة الكهف»: the reciters to choose from ({id, name}, as assets/quran/reciters.json lists them), then that one's al-Kahf to its end. */
+    public static final int KAHF = 18;
+    public static java.util.List<String[]> reciters(Context c) {
+        java.util.List<String[]> out = new java.util.ArrayList<>();
+        for (Catalog.Reciter r : Catalog.get(c).reciters) if (r.surahs >= KAHF) out.add(new String[]{r.id, r.name});
+        return out;
+    }
+    public static void playKahf(Context c, String reciterId) { MusicService.playSurahOnce(c, reciterId, KAHF); }
+    /** al-Kahf is on (playing, or getting ready to). */
+    public static boolean kahfOn() { return MusicService.currentSource() == Prefs.SOURCE_SURAH && MusicService.currentSurah() == KAHF; }
+
     public static void next(Context c) { MusicService.nextAction(c); }
 
     public static void prev(Context c) { MusicService.prevAction(c); }

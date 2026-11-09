@@ -840,8 +840,8 @@ for (const [hash, want] of [['', 'matches'], ['slot=matches', 'matches'], ['slot
     const H = new Intl.DateTimeFormat('en-u-ca-islamic-umalqura', { timeZone: 'UTC', month: 'numeric', day: 'numeric' });
     const hij = d => H.formatToParts(d).reduce((a, x) => (a[x.type] = +x.value.replace(/[^0-9]/g, ''), a), {});
     const forbidden = h => (h.month === 10 && h.day === 1) || (h.month === 12 && h.day >= 10 && h.day <= 13);
-    const rec = (h, wd) => !forbidden(h) && (h.month === 9 || (h.month === 12 && h.day === 9) || (h.month === 1 && (h.day === 9 || h.day === 10))
-      || (h.day >= 13 && h.day <= 15) || wd === 1 || wd === 4 || (h.month === 10 && h.day >= 2));
+    const rec = (h, wd) => !forbidden(h) && (h.month === 9 || (h.month === 12 && h.day === 9) || (h.month === 1 && h.day === 10)
+      || (h.day >= 13 && h.day <= 15) || wd === 1);
     const bad = [], seen = new Set(), keys = new Set();
     let n = 0;
     for (let i = 0; i < 400; i++) {
@@ -863,7 +863,7 @@ for (const [hash, want] of [['', 'matches'], ['slot=matches', 'matches'], ['slot
   });
   check(`fasting: ${r.n} days, never a forbidden day, always the earliest recommended`, !errors.length && !r.bad.length, JSON.stringify(r));
   check('fasting: all five forbidden days came up as «today» and were skipped', r.seen.join() === '10/1,12/10,12/11,12/12,12/13', r.seen.join());
-  check('fasting: every kind of day was suggested at some point', r.keys.join() === 'arafah,ashura,mon,ramadan,shawwal,tasua,thu,white', r.keys.join());
+  check('fasting: every kind of day was suggested at some point', r.keys.join() === 'arafah,ashura,mon,ramadan,white', r.keys.join());
   const at = async iso => { await p.evaluate(FAKE_NOW(iso) + '; renderSlot();'); return slotText(p); };
   const cases = [
     ['2027-05-15T09:00:00Z', 'يوم عرفة اليوم'],                  // 9 Dhul-Hijjah
@@ -871,8 +871,8 @@ for (const [hash, want] of [['', 'matches'], ['slot=matches', 'matches'], ['slot
     ['2027-05-16T09:00:00Z', 'الأيام البيض بعد ٤ أيام'],         // Eid and Tashreeq skipped: 14 Dhul-Hijjah
     ['2027-02-10T09:00:00Z', 'صيام رمضان اليوم ٣ من رمضان'],
     ['2027-02-10T17:00:00Z', 'صيام رمضان اليوم ٣ من رمضان'],
-    ['2027-03-09T09:00:00Z', 'ست من شوال غدًا الأربعاء'],        // Eid al-Fitr: tomorrow, the six of Shawwal
-    ['2026-10-22T09:00:00Z', 'صيام الخميس اليوم'],
+    ['2027-03-09T09:00:00Z', 'صيام الإثنين بعد ٦ أيام'],         // Eid al-Fitr: this copy reminds of no six of Shawwal
+    ['2026-10-22T09:00:00Z', 'الأيام البيض بعد يومين'],          // a Thursday: this copy reminds of no Thursday
     ['2026-10-22T17:00:00Z', 'الأيام البيض بعد يومين'],
   ];
   for (const [iso, want] of cases) { const t = await at(iso); check(`fasting at ${iso}: ${want}`, t.label === 'الصيام' && t.row === want, JSON.stringify(t)); }

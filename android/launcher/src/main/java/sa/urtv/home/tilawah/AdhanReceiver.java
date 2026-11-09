@@ -19,6 +19,7 @@ public class AdhanReceiver extends BroadcastReceiver {
 
     @Override public void onReceive(Context context, Intent intent) {
         if (intent == null || intent.getAction() == null) return;
+        if (RamadanAlarms.ACTION.equals(intent.getAction())) { RamadanAlarms.fire(context, intent); return; }
         Prefs prefs = new Prefs(context);
         boolean alarm = AdhanScheduler.ACTION.equals(intent.getAction());
 

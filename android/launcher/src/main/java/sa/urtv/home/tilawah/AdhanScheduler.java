@@ -22,6 +22,7 @@ final class AdhanScheduler {
     private AdhanScheduler() {}
 
     static void schedule(Context c) {
+        RamadanAlarms.schedule(c);   // the suhoor and the radio before the iftar, whether the adhan is on or not
         AlarmManager am = (AlarmManager) c.getSystemService(Context.ALARM_SERVICE);
         if (am == null) return;
         am.cancel(pending(c, 0));

@@ -57,6 +57,8 @@ public class MusicService extends Service implements AudioManager.OnAudioFocusCh
     static final String EXTRA_SECONDS = "seconds";
     static final String EXTRA_MINUTES = "minutes";
     static final String EXTRA_DELTA = "delta";
+    /** with PLAY_SURAH: play that surah to its end and stop (Friday's al-Kahf), instead of going on to the next */
+    static final String EXTRA_ONCE = "once";
 
     private static volatile int source = Prefs.SOURCE_NONE;
     private static volatile boolean playing, buffering, prepared;
@@ -65,6 +67,8 @@ public class MusicService extends Service implements AudioManager.OnAudioFocusCh
     private static volatile String error;
     private static volatile long sleepUntil;
     private static volatile String adhanName;
+    /** the surah playing stops at its end (EXTRA_ONCE) */
+    private static volatile boolean once;
 
     private Catalog cat;
     private Prefs prefs;
@@ -180,6 +184,11 @@ public class MusicService extends Service implements AudioManager.OnAudioFocusCh
         start(c, intent(c, ACTION_PLAY_SURAH).putExtra(EXTRA_RECITER, reciterId).putExtra(EXTRA_SURAH, surah));
     }
 
+    /** That surah alone, to its end, then silence (Friday's al-Kahf). */
+    static void playSurahOnce(Context c, String reciterId, int surah) {
+        start(c, intent(c, ACTION_PLAY_SURAH).putExtra(EXTRA_RECITER, reciterId).putExtra(EXTRA_SURAH, surah).putExtra(EXTRA_ONCE, true));
+    }
+
     static void playRadio(Context c, int index) {
         start(c, intent(c, ACTION_PLAY_RADIO).putExtra(EXTRA_STATION, index));
     }
@@ -233,9 +242,11 @@ public class MusicService extends Service implements AudioManager.OnAudioFocusCh
 
         switch (action) {
             case ACTION_PLAY_SURAH:
+                once = intent.getBooleanExtra(EXTRA_ONCE, false);
                 playSurahById(intent.getStringExtra(EXTRA_RECITER), intent.getIntExtra(EXTRA_SURAH, 1), 0);
                 break;
             case ACTION_PLAY_RADIO:
+                once = false;
                 playRadio(intent.getIntExtra(EXTRA_STATION, 0));
                 break;
             case ACTION_PLAY_ADHAN:
@@ -437,7 +448,8 @@ public class MusicService extends Service implements AudioManager.OnAudioFocusCh
             updateNotification();
         });
         player.setOnCompletionListener(mp -> {
-            if (source == Prefs.SOURCE_SURAH) next();
+            if (source == Prefs.SOURCE_SURAH && once) stopPlayback();
+            else if (source == Prefs.SOURCE_SURAH) next();
             else if (source == Prefs.SOURCE_ADHAN) finishAdhan();
             else { playing = false; updateSession(); updateNotification(); }
         });

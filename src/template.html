@@ -477,6 +477,14 @@
   .adbar[hidden]{display:none}
   html.widget .adbar{display:none}
   .dimmer{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:30;transition:opacity 6s linear}
+  /* midnight to Fajr (applyNight): a faint clock alone on black */
+  html.nightclock body{background:#000}
+  html.nightclock .photo,html.nightclock #credit,html.nightclock .veil,html.nightclock .grain,html.nightclock .top-veil,html.nightclock .bottom-veil,
+  html.nightclock .top,html.nightclock .week,html.nightclock .bottom,html.nightclock .subline,html.nightclock .ystrip{opacity:0!important;transition:opacity 4s}
+  html.nightclock .dimmer{opacity:0!important}
+  html.nightclock .clock{opacity:.3;text-shadow:none;transition:opacity 4s}
+  /* Ramadan from Fajr to Maghrib: the clock is the time left to the iftar (tickClock) */
+  html.iftar #clock-sub{color:var(--gold);letter-spacing:.12em;font-weight:500}
   .stage{transition:transform 3s ease}
   .sc{color:var(--gold-3);letter-spacing:.02em}
 
@@ -722,17 +730,29 @@ function fmt12(h, mi){
 function setText(el, v){ if(el.textContent !== v) el.textContent = v; }
 function setHTML(el, h, force){ if(force || el.__h !== h){ el.__h = h; el.innerHTML = h; return true; } return false; }
 
+// minutes of the city's day for one of today's times (DAY_TIMES), «24:10» past midnight included
+const dayMin = k => { const [h, mi] = String(DAY_TIMES[k]).split(':').map(Number); return h * 60 + mi; };
+// Ramadan, between Fajr and Maghrib: the minutes left to the iftar; null otherwise (and always on the home screen's cards)
+function iftarLeft(p = riyadhParts()){
+  if(CONFIG.widget || !DAY_TIMES || !DAY_TIMES.Fajr || !DAY_TIMES.Maghrib || hijriMonthNow() !== 9) return null;
+  const m = p.h * 60 + p.mi;
+  return m >= dayMin('Fajr') && m < dayMin('Maghrib') ? dayMin('Maghrib') - m : null;
+}
 function tickClock(){
   const p = riyadhParts();
   const h12 = p.h % 12 === 0 ? 12 : p.h % 12;
   // one box per digit: browsers ignore letter-spacing on Arabic digits, and ٤ reaches into the next digit
   const digits = s => [...s].map(ch => '<i>' + ch + '</i>').join('');
-  const key = h12 + ':' + p.mi;
-  if(key === tickClock.last) return;   // ticks every second, redraws once a minute
+  const key = h12 + ':' + p.mi + ':' + !!DAY_TIMES;
+  if(key === tickClock.last) return;   // ticks every second, redraws once a minute (and once the prayer times are in)
   tickClock.last = key;
-  document.getElementById('ck-h').innerHTML = digits(ar(h12));
-  document.getElementById('ck-m').innerHTML = digits(ar(pad(p.mi)));
-  setText(document.getElementById('ck-ap'), p.h < 12 ? 'ص' : 'م');
+  // Ramadan: the big clock counts down to the iftar, and the line under it says so with the time
+  const left = iftarLeft(p), iftar = left !== null;
+  document.documentElement.classList.toggle('iftar', iftar);
+  document.getElementById('ck-h').innerHTML = digits(ar(iftar ? Math.floor(left / 60) : h12));
+  document.getElementById('ck-m').innerHTML = digits(ar(pad(iftar ? left % 60 : p.mi)));
+  setText(document.getElementById('ck-ap'), iftar ? '' : p.h < 12 ? 'ص' : 'م');
+  setText(document.getElementById('clock-sub'), iftar ? 'على الإفطار · الساعة ' + fmt12(p.h, p.mi) : 'بتوقيت ' + CONFIG.city);
   if(CONFIG.yearStrip) renderYearStrip();   // the day may have turned; the clock's width may have changed
 }
 
@@ -1718,19 +1738,17 @@ const FAST_WHEN = {
 };
 const FAST_TODAY_UNTIL = 18;   // from this hour (Riyadh) today's fast is behind us: look from tomorrow on
 
-// What is recommended on a Hijri day (month hm, day hd, weekday wd, 0 = Sunday), best reason first.
+// What is recommended on a Hijri day (month hm, day hd, weekday wd, 0 = Sunday), best reason first. This copy reminds of
+// Arafah, Ashura, the white days and Mondays only (the owner's choice; the Java twin is the launcher's FastingText).
 // Always [] on the days fasting is forbidden: the two Eids and the three days of Tashreeq.
 function fastReasons(hm, hd, wd){
   if((hm === 10 && hd === 1) || (hm === 12 && hd >= 10 && hd <= 13)) return [];
   const out = [];
   if(hm === 9) return ['ramadan'];
   if(hm === 12 && hd === 9) out.push('arafah');
-  if(hm === 1 && hd === 9) out.push('tasua');
   if(hm === 1 && hd === 10) out.push('ashura');
   if(hd >= 13 && hd <= 15) out.push('white');
   if(wd === 1) out.push('mon');
-  if(wd === 4) out.push('thu');
-  if(hm === 10 && hd >= 2) out.push('shawwal');
   return out;
 }
 const FAST_HIJRI = new Intl.DateTimeFormat('en-u-ca-islamic-umalqura', {timeZone:'UTC', month:'numeric', day:'numeric'});
@@ -2849,6 +2867,9 @@ async function loadWeather(){
 // night dimming: transparent by day, dark after 21:00 and before 07:00
 function applyNight(){
   const p = riyadhParts();
+  // from midnight to Fajr nothing but a faint clock: no photo, no cards, no lines (the bar before the adhan still shows)
+  const late = !CONFIG.widget && !!DAY_TIMES && DAY_TIMES.Fajr && p.h * 60 + p.mi < dayMin('Fajr');
+  document.documentElement.classList.toggle('nightclock', !!late);
   const h = p.h + p.mi/60;
   const MAX = 0.46;
   let o = 0;
@@ -3155,8 +3176,6 @@ function boot(){
   addEventListener('pagehide', saveSnap);
   const wxCity = document.getElementById('wx-city');
   if(wxCity) wxCity.textContent = CONFIG.city;
-  const cs = document.getElementById('clock-sub');
-  if(cs) cs.textContent = 'بتوقيت ' + CONFIG.city;
   document.title = 'شاشة تلفزيونك';
   applyBackground(true);
   loadPhotoIndex().then(() => applyBackground(true));

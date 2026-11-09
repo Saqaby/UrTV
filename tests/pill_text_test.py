@@ -26,13 +26,13 @@ check("Pill: a focused pill is its own focus target (focusable, children are not
 check("Pill: only the padding and the name's window change; the pill's own size params (its height) are never touched",
       pill.count("getLayoutParams()") == 2 and "clip.getLayoutParams()" in pill and "name.getLayoutParams()" in pill)
 order = re.findall(r"Arrays\.asList\(([^)]*)\)", main.split("List<Pill> row", 1)[1].split("\n", 1)[0])
-check("MainActivity: five pills in this order (sources, network, settings, sleep, the Quran radio); tasks and the screensaver are in the settings menu",
-      order == ["inputs, wifiPill, settings, sleepPill, radioPill"] and "row.add(" not in main.split("List<Pill> row", 1)[1].split("for (Pill p : row)", 1)[0]
+check("MainActivity: five pills in this order (sources, network, settings, sleep, the Quran radio), al-Kahf after them on Fridays; tasks and the screensaver are in the settings menu",
+      order == ["inputs, wifiPill, settings, sleepPill, radioPill, kahfPill"] and "row.add(" not in main.split("List<Pill> row", 1)[1].split("for (Pill p : row)", 1)[0]
       and 'inputRow("المهام"' in main and 'inputRow("شاشة التوقف"' in main, order)
 check("MainActivity: every pill is a Pill with a fixed 30 dp row (the row's height is reserved)",
       "right.addView(p, llp(-2, dp(Pill.HEIGHT), dp(10), 0, 0, 0))" in main and "TextView tasks" not in main and "TextView saver" not in main)
-check("MainActivity: D-pad ends and order are unchanged (wireFocus and moveFocusSideways still walk the pills list)",
-      "p.setNextFocusLeftId(i == 0 ? p.getId() : pills.get(i - 1).getId())" in main and "int next = right ? index - 1 : index + 1;" in main)
+check("MainActivity: D-pad ends and order are unchanged (wireFocus walks the shown pills, moveFocusSideways the row)",
+      "p.setNextFocusLeftId(i == 0 ? p.getId() : shown.get(i - 1).getId())" in main and "if (p.getVisibility() == View.VISIBLE) shown.add(p);" in main and "int next = right ? index - 1 : index + 1;" in main)
 check("MainActivity: the sleep and network names are set on the pill, not drawn on the row", "sleepPill.setLabel(Digits.of(PillText.sleep(left)))" in main
       and "wifiPill.setLabel(PillText.network(" in main)
 

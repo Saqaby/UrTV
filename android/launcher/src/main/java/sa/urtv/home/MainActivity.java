@@ -116,6 +116,8 @@ public class MainActivity extends Activity {
     private PopupWindow inputsPopup;
     private HomeCard homeCard;
     private Pill radioPill;   // «إذاعة القرآن», gold and «إيقاف الإذاعة» while the radio plays
+    private Pill kahfPill;    // «سورة الكهف», from Thursday's evening to Friday's: the reciters, then al-Kahf to its end
+    private TextView fastLine;   // «غدًا صيام الإثنين» under the Ramadan window (FastingText)
     private Pill sleepPill;   // «مؤقت النوم», with the minutes left while it runs (shown while it has the focus)
     private TextView adhanBar;   // «الأذان بعد ٨ دقائق», over the top edge
     private View clockBlock, bottomBlock;   // the greeting, clock and date; the app title and the dock under it
@@ -400,6 +402,17 @@ public class MainActivity extends Activity {
         ramadanLine.setBackground(chip);
         ramadanLine.setVisibility(View.GONE);
         left.addView(ramadanLine, llp(-2, -2, 0, dp(8), dp(4), 0));
+        // the fasting reminder: «غدًا صيام الإثنين», «اليوم يوم عرفة», only the day before and the day itself (FastingText)
+        fastLine = text(13, "regular", 0xFFFFFDF6);
+        fastLine.setSingleLine(true);
+        fastLine.setPadding(dp(11), dp(4), dp(11), dp(5));
+        GradientDrawable fastChip = new GradientDrawable();
+        fastChip.setCornerRadius(dp(15));
+        fastChip.setColor(0x59000000);
+        fastChip.setStroke(dp(1), 0x73D6AF6B);
+        fastLine.setBackground(fastChip);
+        fastLine.setVisibility(View.GONE);
+        left.addView(fastLine, llp(-2, -2, 0, dp(6), dp(4), 0));
         for (TextView t : new TextView[]{greeting, weatherLine, clock, ampm, date, gregLine, zoneLine}) t.setShadowLayer(dp(3), 0, dp(1), 0x80000000);
         left.setGravity(Gravity.RIGHT);
         for (TextView t : new TextView[]{greeting, weatherLine, date, gregLine, zoneLine}) t.setGravity(Gravity.RIGHT);
@@ -421,7 +434,11 @@ public class MainActivity extends Activity {
         // «إذاعة القرآن»: the Saudi Quran Radio and, with it, the screensaver; pressed again while it plays, it stops
         radioPill = pill("إذاعة القرآن", R.drawable.ic_listen);
         radioPill.setOnClickListener(v -> toggleQuranRadio());
-        List<Pill> row = new ArrayList<>(Arrays.asList(inputs, wifiPill, settings, sleepPill, radioPill));
+        // «سورة الكهف»: shown from Thursday 18:00 to Friday 18:00 (updateFriday); the reciters, then al-Kahf alone, to its end
+        kahfPill = pill("سورة الكهف", R.drawable.ic_note);
+        kahfPill.setOnClickListener(v -> showKahf(v));
+        kahfPill.setVisibility(View.GONE);
+        List<Pill> row = new ArrayList<>(Arrays.asList(inputs, wifiPill, settings, sleepPill, radioPill, kahfPill));
         for (Pill p : row) {
             right.addView(p, llp(-2, dp(Pill.HEIGHT), dp(10), 0, 0, 0));
             pills.add(p);
@@ -629,10 +646,12 @@ public class MainActivity extends Activity {
         // the «المهام» card, when it is among the home cards, is a stop between the pills and the dock
         View card = homeCard == null ? null : homeCard.live();
         int dockId = d > 0 ? dockCards.get(Math.min(d - 1, d / 2)).getId() : View.NO_ID;
-        for (int i = 0; i < pills.size(); i++) {
-            View p = pills.get(i);
-            p.setNextFocusLeftId(i == 0 ? p.getId() : pills.get(i - 1).getId());
-            p.setNextFocusRightId(i == pills.size() - 1 ? p.getId() : pills.get(i + 1).getId());
+        List<View> shown = new ArrayList<>();   // a hidden pill (al-Kahf outside Friday) is stepped over
+        for (View p : pills) if (p.getVisibility() == View.VISIBLE) shown.add(p);
+        for (int i = 0; i < shown.size(); i++) {
+            View p = shown.get(i);
+            p.setNextFocusLeftId(i == 0 ? p.getId() : shown.get(i - 1).getId());
+            p.setNextFocusRightId(i == shown.size() - 1 ? p.getId() : shown.get(i + 1).getId());
             p.setNextFocusUpId(p.getId());
             p.setNextFocusDownId(card != null ? card.getId() : dockId != View.NO_ID ? dockId : p.getId());
         }
@@ -999,6 +1018,8 @@ public class MainActivity extends Activity {
         gregLine.setText(arabicDigits(greg));
         gregLine.setVisibility(hijri.isEmpty() ? View.GONE : View.VISIBLE);
         updateRamadan(ms, tz);
+        updateFasting(ms, tz);
+        updateFriday(ms, tz);
         updateAdhanBar(cfg);
         sa.urtv.home.tilawah.AdhanSync.onConfig(this, cfg.fragment);   // «تعديل وقت الصلاة» changed on the TV: the alarm follows
         updateSleepPill();
@@ -1006,33 +1027,127 @@ public class MainActivity extends Activity {
     }
 
     // the Ramadan window, worked out once a day (the city's date): days to 1 Ramadan, or the day of it, by Umm al-Qura
-    private String ramadanDay = "";
+    private String ramadanDay = "", ramadanWords = "";
     private void updateRamadan(long ms, String tz) {
         try {
             android.icu.util.TimeZone zone = android.icu.util.TimeZone.getTimeZone(tz);
             android.icu.util.Calendar cal = android.icu.util.Calendar.getInstance(zone, new android.icu.util.ULocale("ar_SA@calendar=islamic-umalqura"));
             cal.setTimeInMillis(ms);
             String key = cal.get(android.icu.util.Calendar.YEAR) + "-" + cal.get(android.icu.util.Calendar.DAY_OF_YEAR);
-            if (key.equals(ramadanDay)) return;
-            ramadanDay = key;
-            final int RAMADAN = 8;   // ICU's Islamic months count from 0 (Muharram)
-            String words;
-            if (cal.get(android.icu.util.Calendar.MONTH) == RAMADAN) {
-                words = RamadanText.text(0, cal.get(android.icu.util.Calendar.DAY_OF_MONTH));
-            } else {
-                int days = 0;
-                while (days < 400) {
-                    cal.add(android.icu.util.Calendar.DAY_OF_MONTH, 1);
-                    days++;
-                    if (cal.get(android.icu.util.Calendar.MONTH) == RAMADAN && cal.get(android.icu.util.Calendar.DAY_OF_MONTH) == 1) break;
-                }
-                words = RamadanText.text(days, 0);
-            }
+            if (!key.equals(ramadanDay)) { ramadanWords = ramadanWords(cal); ramadanDay = key; }
+            // in Ramadan, from Fajr to Maghrib, the window also counts down to the iftar: «… · الإفطار بعد ٢ س ١٤ د»
+            long iftar = sa.urtv.home.tilawah.RamadanAlarms.iftarAt(this);
+            String words = ramadanWords + (iftar > 0 ? " · " + RamadanText.iftarIn((int) ((iftar - ms + 59_999) / 60_000)) : "");
             ramadanLine.setText(arabicDigits(words));
             ramadanLine.setVisibility(View.VISIBLE);
         } catch (RuntimeException e) {
             ramadanLine.setVisibility(View.GONE);   // no Umm al-Qura calendar on this TV: no window rather than a wrong count
         }
+    }
+
+    /** The window's words for the day: days to 1 Ramadan, or the day of it (the calendar is moved; the caller's copy is done with). */
+    private static String ramadanWords(android.icu.util.Calendar cal) {
+        final int RAMADAN = 8;   // ICU's Islamic months count from 0 (Muharram)
+        String words;
+        if (cal.get(android.icu.util.Calendar.MONTH) == RAMADAN) {
+            words = RamadanText.text(0, cal.get(android.icu.util.Calendar.DAY_OF_MONTH));
+        } else {
+            int days = 0;
+            while (days < 400) {
+                cal.add(android.icu.util.Calendar.DAY_OF_MONTH, 1);
+                days++;
+                if (cal.get(android.icu.util.Calendar.MONTH) == RAMADAN && cal.get(android.icu.util.Calendar.DAY_OF_MONTH) == 1) break;
+            }
+            words = RamadanText.text(days, 0);
+        }
+        return words;
+    }
+
+    /** «غدًا صيام الإثنين»: the day before a day to fast and that day until 18:00, by Umm al-Qura in the city's zone (FastingText). */
+    private void updateFasting(long ms, String tz) {
+        try {
+            android.icu.util.Calendar cal = android.icu.util.Calendar.getInstance(android.icu.util.TimeZone.getTimeZone(tz),
+                    new android.icu.util.ULocale("ar_SA@calendar=islamic-umalqura"));
+            cal.setTimeInMillis(ms);
+            int hour = cal.get(android.icu.util.Calendar.HOUR_OF_DAY);
+            int[] today = hijriDay(cal);
+            cal.add(android.icu.util.Calendar.DAY_OF_MONTH, 1);
+            String words = FastingText.text(hour, today, hijriDay(cal));
+            if (words != null) fastLine.setText(arabicDigits(words));
+            fastLine.setVisibility(words == null ? View.GONE : View.VISIBLE);
+        } catch (RuntimeException e) {
+            fastLine.setVisibility(View.GONE);
+        }
+    }
+
+    /** {Hijri month from 1, day, weekday from 0 = Sunday} */
+    private static int[] hijriDay(android.icu.util.Calendar cal) {
+        return new int[]{cal.get(android.icu.util.Calendar.MONTH) + 1, cal.get(android.icu.util.Calendar.DAY_OF_MONTH),
+                cal.get(android.icu.util.Calendar.DAY_OF_WEEK) - 1};
+    }
+
+    /** «سورة الكهف» shows from Thursday 18:00 to Friday 18:00 (the city's), and while al-Kahf plays, so it can be stopped. */
+    private String fridayTz = "Asia/Riyadh";
+    private void updateFriday(long ms, String tz) {
+        if (kahfPill == null) return;
+        fridayTz = tz;
+        Calendar c = Calendar.getInstance(java.util.TimeZone.getTimeZone(tz));
+        c.setTimeInMillis(ms);
+        int dow = c.get(Calendar.DAY_OF_WEEK), hour = c.get(Calendar.HOUR_OF_DAY);
+        boolean on = sa.urtv.home.tilawah.NowPlaying.kahfOn();
+        boolean show = on || (dow == Calendar.THURSDAY && hour >= 18) || (dow == Calendar.FRIDAY && hour < 18);
+        kahfPill.setLabel(on ? "إيقاف الكهف" : "سورة الكهف");
+        kahfPill.setAccent(on);
+        int want = show ? View.VISIBLE : View.GONE;
+        if (kahfPill.getVisibility() != want) {
+            if (!show && kahfPill.hasFocus()) radioPill.requestFocus();
+            kahfPill.setVisibility(want);
+            wireFocus();
+        }
+    }
+
+    /** The reciters to pick from; the one picked reads al-Kahf to its end. Pressed while it plays, it stops. */
+    private void showKahf(View anchor) {
+        if (sa.urtv.home.tilawah.NowPlaying.kahfOn()) {
+            sa.urtv.home.tilawah.NowPlaying.stop(this);
+            handler.postDelayed(() -> updateFriday(System.currentTimeMillis(), fridayTz), 400);
+            return;
+        }
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.setPadding(dp(8), dp(8), dp(8), dp(8));
+        android.widget.ScrollView box = new android.widget.ScrollView(this);
+        box.setVerticalScrollBarEnabled(false);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(dp(16));
+        bg.setColor(0xF02A2A2E);
+        bg.setStroke(dp(1), 0x26FFFFFF);
+        box.setBackground(bg);
+        box.addView(list);
+        PopupWindow pw = new PopupWindow(box, dp(260), dp(330), true);
+        List<TextView> rows = new ArrayList<>();
+        for (String[] r : sa.urtv.home.tilawah.NowPlaying.reciters(this)) {
+            rows.add(inputRow(r[1], () -> {
+                sa.urtv.home.tilawah.NowPlaying.playKahf(this, r[0]);
+                handler.postDelayed(() -> { updateFriday(System.currentTimeMillis(), fridayTz); updateRadioPill(); }, 600);
+            }));
+        }
+        for (TextView r : rows) {
+            r.setOnClickListener(v -> { pw.dismiss(); ((Runnable) v.getTag()).run(); });
+            list.addView(r, new LinearLayout.LayoutParams(-1, dp(36)));
+        }
+        for (int i = 0; i < rows.size(); i++) {
+            TextView r = rows.get(i);
+            r.setNextFocusUpId(rows.get(Math.max(0, i - 1)).getId());
+            r.setNextFocusDownId(rows.get(Math.min(rows.size() - 1, i + 1)).getId());
+            r.setNextFocusLeftId(r.getId());
+            r.setNextFocusRightId(r.getId());
+        }
+        pw.setOutsideTouchable(true);
+        pw.setElevation(dp(16));
+        pw.setOnDismissListener(() -> anchor.requestFocus());
+        pw.showAsDropDown(anchor, 0, dp(8), Gravity.START);
+        if (!rows.isEmpty()) rows.get(0).requestFocus();
     }
 
     /** Once a minute with the clock: the bar before the adhan shows in the last 10 minutes, and until the iqama. */

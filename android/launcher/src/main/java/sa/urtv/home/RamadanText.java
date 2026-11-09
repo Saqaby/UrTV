@@ -14,6 +14,12 @@ final class RamadanText {
         return "باقٍ على رمضان " + days(daysLeft);
     }
 
+    /** The time left to the iftar, as the prayer card says it: «الإفطار بعد ٤٥ دقيقة», «الإفطار بعد ٢ س ١٤ د». */
+    static String iftarIn(int minutes) {
+        int m = Math.max(1, minutes);
+        return "الإفطار بعد " + (m < 60 ? m + " دقيقة" : m / 60 + " س " + m % 60 + " د");
+    }
+
     static String days(int n) {
         if (n == 1) return "يوم واحد";
         if (n == 2) return "يومان";

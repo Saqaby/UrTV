@@ -54,7 +54,7 @@ check("the fonts are in place (IBM Plex Sans Arabic under the names the code loa
 
 # ---- the home screen
 main = text(HOME / "MainActivity.java")
-check("five pills: sources, network, settings, sleep, the Quran radio", "Arrays.asList(inputs, wifiPill, settings, sleepPill, radioPill)" in main
+check("five pills: sources, network, settings, sleep, the Quran radio (and al-Kahf on Fridays)", "Arrays.asList(inputs, wifiPill, settings, sleepPill, radioPill, kahfPill)" in main
       and 'pill("المهام"' not in main and 'pill("شاشة التوقف"' not in main and 'pill("تلاوة وأذان"' not in main)
 check("«الإعدادات» opens a menu: الأذان، ترتيب المفضلة، المهام، شاشة التوقف، إعدادات التلفزيون",
       "settings.setOnClickListener(v -> showSettings(v));" in main
@@ -74,6 +74,27 @@ check("«إذاعة القرآن» plays the Saudi Quran Radio and starts the sc
       and "NowPlaying.stop(this)" in main and 'radioPill.setLabel(on ? "إيقاف الإذاعة" : "إذاعة القرآن")' in main)
 check("the adhan asks for the sound for a while only, so what played carries on after it", "AUDIOFOCUS_GAIN_TRANSIENT" in service)
 
+# ---- Friday's al-Kahf, the Ramadan alarms, the night clock and the iftar countdown
+main = text(HOME / "MainActivity.java")
+check("al-Kahf: a pill from Thursday 18:00 to Friday 18:00, and while it plays", "kahfPill" in main
+      and "dow == Calendar.THURSDAY && hour >= 18" in main and "dow == Calendar.FRIDAY && hour < 18" in main and "boolean show = on ||" in main)
+check("al-Kahf: the reciters to choose from, then surah 18 alone", "NowPlaying.reciters(this)" in main and "NowPlaying.playKahf(this, r[0])" in main)
+svc = text(HOME / "tilawah/MusicService.java")
+check("al-Kahf: played once, stopped at its end, not on to the next surah",
+      "if (source == Prefs.SOURCE_SURAH && once) stopPlayback();" in svc and "putExtra(EXTRA_ONCE, true)" in svc)
+check("hidden pills are stepped over by the D-pad", "if (p.getVisibility() == View.VISIBLE) shown.add(p);" in main)
+ram = text(HOME / "tilawah/RamadanAlarms.java")
+check("Ramadan: the chime an hour before Fajr, the radio half an hour before Maghrib",
+      "SUHOOR_BEFORE = 60 * 60_000L" in ram and "RADIO_BEFORE = 30 * 60_000L" in ram and "t.ramadan()" in ram)
+check("Ramadan: the radio never over something already playing", "!audio.isMusicActive()" in ram and "!NowPlaying.quranRadioOn()" in ram)
+check("Ramadan: set with the adhan's alarm, fired through its receiver",
+      "RamadanAlarms.schedule(c);" in text(HOME / "tilawah/AdhanScheduler.java")
+      and "RamadanAlarms.fire(context, intent)" in text(HOME / "tilawah/AdhanReceiver.java"))
+check("Ramadan: the home window counts down to the iftar", "RamadanAlarms.iftarAt(this)" in main and "RamadanText.iftarIn(" in main)
+page = text(ROOT / "src/template.html")
+check("screensaver: the clock is the time left to the iftar in Ramadan", "function iftarLeft(" in page and "'على الإفطار · الساعة '" in page)
+check("screensaver: midnight to Fajr, a faint clock alone", "classList.toggle('nightclock'" in page and "html.nightclock .clock{opacity:.3" in page)
+
 # ---- the words: RamadanText and GreetingText.icon, run with javac
 if shutil.which("javac") and shutil.which("java"):
     with tempfile.TemporaryDirectory() as tmp:
@@ -82,12 +103,21 @@ if shutil.which("javac") and shutil.which("java"):
 public class Run { public static void main(String[] a) {
   System.out.println(RamadanText.text(107, 0)); System.out.println(RamadanText.text(1, 0)); System.out.println(RamadanText.text(2, 0));
   System.out.println(RamadanText.text(5, 0)); System.out.println(RamadanText.text(0, 5));
+  System.out.println(RamadanText.iftarIn(45)); System.out.println(RamadanText.iftarIn(134)); System.out.println(RamadanText.iftarIn(0));
+  int[] mon = {5, 3, 1}, tue = {5, 4, 2}, sun = {5, 2, 0}, arafah = {12, 9, 3}, eid = {12, 10, 1}, tashreeq = {12, 13, 4}, ashura = {1, 10, 6},
+        white = {7, 14, 2}, ramadanMon = {9, 5, 1}, thu = {5, 6, 4};
+  System.out.println(FastingText.text(9, sun, mon) + "|" + FastingText.text(9, mon, tue) + "|" + FastingText.text(19, mon, tue) + "|"
+    + FastingText.text(9, new int[]{12, 8, 2}, arafah) + "|" + FastingText.text(9, arafah, eid) + "|" + FastingText.text(9, eid, new int[]{12, 11, 2}) + "|"
+    + FastingText.text(9, new int[]{12, 12, 3}, tashreeq) + "|" + FastingText.text(9, new int[]{1, 9, 5}, ashura) + "|" + FastingText.text(9, white, white) + "|"
+    + FastingText.text(9, new int[]{9, 4, 0}, ramadanMon) + "|" + FastingText.text(9, new int[]{5, 5, 3}, thu));
   System.out.println(GreetingText.icon(0, 0, false) + " " + GreetingText.icon(1, 0, true) + " " + GreetingText.icon(2, 0, true) + " "
     + GreetingText.icon(3, 0, false) + " " + GreetingText.icon(61, 0, false) + " " + GreetingText.icon(0, 200, false) + " " + GreetingText.icon(95, 0, false));
 } }""", encoding="utf-8")
-        subprocess.run(["javac", "-encoding", "UTF-8", "-d", tmp, str(HOME / "RamadanText.java"), str(HOME / "GreetingText.java"), str(HOME / "DigitsText.java"), str(run)], check=True, capture_output=True)
+        subprocess.run(["javac", "-encoding", "UTF-8", "-d", tmp, str(HOME / "RamadanText.java"), str(HOME / "FastingText.java"), str(HOME / "GreetingText.java"), str(HOME / "DigitsText.java"), str(run)], check=True, capture_output=True)
         out = subprocess.run(["java", "-Dfile.encoding=UTF-8", "-cp", tmp, "sa.urtv.home.Run"], capture_output=True, text=True, encoding="utf-8").stdout.splitlines()
     want = ["باقٍ على رمضان 107 يومًا", "باقٍ على رمضان يوم واحد", "باقٍ على رمضان يومان", "باقٍ على رمضان 5 أيام", "رمضان مبارك · اليوم 5",
+            "الإفطار بعد 45 دقيقة", "الإفطار بعد 2 س 14 د", "الإفطار بعد 1 دقيقة",
+            "غدًا صيام الإثنين|اليوم صيام الإثنين|null|غدًا يوم عرفة|اليوم يوم عرفة|null|null|غدًا صيام عاشوراء|اليوم صيام الأيام البيض|null|null",
             "sun moon partnight cloud rain fog storm"]
     for got, exp in zip(out, want):
         check(f"words: {exp}", got == exp, got)

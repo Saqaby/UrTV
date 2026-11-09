@@ -36,6 +36,9 @@ final class PrayerTimes {
     /** «تعديل وقت الصلاة»: minutes added to PRAYERS[k] (PrayerAdjust); the sunrise is never moved */
     private int[] adj = new int[PrayerAdjust.COUNT];
 
+    /** these times are of a day in Ramadan (Umm al-Qura) */
+    boolean ramadan() { return ramadan; }
+
     static final class Next {
         final int index;
         final long at;
