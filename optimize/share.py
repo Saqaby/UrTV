@@ -20,8 +20,6 @@ import re
 import shutil
 import subprocess
 import sys
-import urllib.parse
-import urllib.request
 from pathlib import Path
 
 for stream in (sys.stdout, sys.stderr):   # Windows writes pipes in its own code page
@@ -30,13 +28,7 @@ for stream in (sys.stdout, sys.stderr):   # Windows writes pipes in its own code
 
 RUN = Path(__file__).resolve().parent / "run"
 OUT = RUN / "share.md"
-QR = RUN / "share-qr.png"
-# The author's Google Form (anonymous, no sign-in): each summary becomes a row in the author's sheet. The same two
-# values are in docs/share/index.html.
-FORM_ID = "1FAIpQLSfDJFfy1NgiB-ZMXoBI29n_KTdYnGadn1-iOqXJOxaQJEr-ZQ"   # from the form's link: docs.google.com/forms/d/e/<FORM_ID>/viewform
-FORM_FIELD = "1457112794"   # the question's number: entry.<FORM_FIELD>=… in the form's pre-filled link
-# Without the form, or offline: the QR code opens this page (docs/share/, GitHub Pages) with the summary after the #
-PAGE = "https://tshi-dev.github.io/UrTV/share/"
+# This copy is its owner's alone: a summary is written to optimize/run/share.md and sent to nobody (send() below).
 
 
 def scrub(text):   # in case a note or an output carries something personal
@@ -282,54 +274,15 @@ def main():
 
 def deliver(text):
     if send(text):
-        print("Sent to the author. Thank you!")
+        print("Sent.")
         return
-    # not sent from here (no internet?): a QR code carries it to the phone, whose page sends it
-    if qr(PAGE + "#" + urllib.parse.quote(text)):
-        print(f"QR code: {QR.relative_to(RUN.parent.parent)}" + (" (open on this screen)" if show(QR) else ""))
-        print("Scan it with the phone's camera: a page opens with this text and a button that sends it.")
+    print(f"Kept on this computer only: {OUT.relative_to(RUN.parent.parent)}")
 
 
 def send(text):
-    """Into the author's Google Form, anonymously; False if it didn't go through."""
-    url = f"https://docs.google.com/forms/d/e/{FORM_ID}/formResponse"
-    data = urllib.parse.urlencode({f"entry.{FORM_FIELD}": text}).encode()
-    try:
-        with urllib.request.urlopen(urllib.request.Request(url, data=data), timeout=30) as r:
-            return r.status == 200
-    except Exception as e:  # noqa: BLE001
-        print(f"(couldn't send it from this computer: {e})")
-        return False
-
-
-def qr(link):
-    try:
-        import segno
-    except ImportError:
-        print("(no QR code: optimize/share.sh installs segno when it runs, and that did not work: no internet for pip?)")
-        return False
-    try:
-        segno.make(link, error="l").save(str(QR), scale=6, border=4)
-    except segno.DataOverflowError:
-        print("(too long for a QR code: send it from a computer with internet: optimize/share.sh again)")
-        return False
-    return True
-
-
-def show(path):
-    """Open the picture on this computer's screen, if there is a way."""
-    try:
-        if sys.platform == "win32" or os.environ.get("MSYSTEM"):
-            os.startfile(str(path))   # noqa: S606  (Windows' own viewer)
-        elif sys.platform == "darwin":
-            subprocess.run(["open", str(path)], check=True, timeout=20)
-        elif shutil.which("xdg-open"):
-            subprocess.run(["xdg-open", str(path)], check=True, timeout=20, capture_output=True)
-        else:
-            return False
-        return True
-    except Exception:  # noqa: BLE001
-        return False
+    """This private copy has no author to send to: nothing leaves the computer."""
+    print("(this copy sends no report to anyone)")
+    return False
 
 
 if __name__ == "__main__":

@@ -11,5 +11,4 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PY="${PY:-optimize/venv/bin/python}"
-"$PY" -c "import segno" 2> /dev/null || "$PY" -m pip install -q segno || true   # the QR code (older setups)
 "$PY" -I optimize/share.py "$@"

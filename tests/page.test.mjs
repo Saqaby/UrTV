@@ -1227,8 +1227,8 @@ const crestNet = seen => r => {
 };
 const CREST_GAMES = (names) => `NEXT_LIST = { '136013': ${JSON.stringify(names.map(([h, a, hb, ab], i) => ({
   idEvent: 'c' + i, strHomeTeam: h, strAwayTeam: a, idHomeTeam: String(100 + 2 * i), idAwayTeam: String(101 + 2 * i),
-  strHomeTeamBadge: hb ? BADGE(100 + 2 * i) : null, strAwayTeamBadge: ab ? BADGE(101 + 2 * i) : null,
-  strTimestamp: new Date(Date.now() + (3 + 30 * i) * 36e5).toISOString() })))} };`;
+  strHomeTeamBadge: hb ? BADGE(100 + 2 * i) : null, strAwayTeamBadge: ab ? BADGE(101 + 2 * i) : null })))}
+  .map((e, i) => Object.assign(e, { strTimestamp: new Date(Date.now() + (3 + 30 * i) * 36e5).toISOString() })) };`;   // the page's clock, not this machine's
 const SHORT_GAMES = [['Al-Hilal', 'Al-Nassr', true, true], ['Al-Ahli', 'Al-Ittihad', true, false]];   // the second game's guest has no crest
 const LONG_GAMES = [['Manchester United', 'Borussia Monchengladbach', true, true], ['Paris Saint-Germain', 'Bayern Munich', true, true],
                     ['Real Madrid', 'Manchester City', true, true]];
